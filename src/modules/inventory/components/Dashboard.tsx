@@ -13,24 +13,24 @@ export default function Dashboard({ products, onAddProduct, onAdjustStock }: Das
   const { profile, user } = useAuth();
   const firstName = (profile?.full_name || user?.user_metadata?.full_name || 'there').split(' ')[0];
 
-  const enriched = products.map(p => ({ ...p, metrics: calculateProductMetrics(p) }));
+  const enriched = products.map(p => ({ ...p, metrics: calculateProductMetrics(p, products) }));
 
   const totalProducts = products.length;
-  const totalInventory = products.reduce((sum, p) => sum + p.book_inventory, 0);
-  const needReorder = enriched.filter(p => p.metrics.status === 'REORDER NOW').length;
+  const totalInventory = enriched.reduce((sum, p) => sum + p.metrics.bookInventory, 0);
+  const needReorder = enriched.filter(p => p.metrics.status === 'REORDER NOW' || p.metrics.status === 'OUT OF STOCK').length;
   const avgMargin = products.length > 0
     ? enriched.reduce((sum, p) => sum + p.metrics.netMarginPercent, 0) / products.length
     : 0;
 
   const reorderProducts = enriched
-    .filter(p => p.metrics.status === 'REORDER NOW')
+    .filter(p => p.metrics.status === 'REORDER NOW' || p.metrics.status === 'OUT OF STOCK')
     .sort((a, b) => a.metrics.daysRemaining - b.metrics.daysRemaining);
 
   const estimatedReorderCost = reorderProducts.reduce((sum, p) => sum + p.metrics.reorderCost, 0);
 
   const topInventory = [...enriched]
     .filter(p => p.category !== 'Bundle')
-    .sort((a, b) => b.book_inventory - a.book_inventory)
+    .sort((a, b) => b.metrics.bookInventory - a.metrics.bookInventory)
     .slice(0, 8);
 
   const maxInventory = topInventory.length > 0 ? topInventory[0].book_inventory : 1;
@@ -146,7 +146,7 @@ export default function Dashboard({ products, onAddProduct, onAdjustStock }: Das
                 <div key={p.id} className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-100">
                   <div>
                     <p className="font-medium text-slate-800 text-sm">{p.name}</p>
-                    <p className="text-xs text-slate-500">{p.category} &middot; {p.book_inventory} in stock</p>
+                    <p className="text-xs text-slate-500">{p.category} &middot; {p.metrics.bookInventory} in stock</p>
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-semibold text-red-600">
@@ -176,9 +176,9 @@ export default function Dashboard({ products, onAddProduct, onAdjustStock }: Das
                   <div className="flex-1 bg-slate-100 rounded-full h-5 overflow-hidden">
                     <div
                       className="bg-gradient-to-r from-blue-500 to-indigo-500 h-full rounded-full transition-all flex items-center justify-end pr-2"
-                      style={{ width: `${Math.max(8, (p.book_inventory / maxInventory) * 100)}%` }}
+                      style={{ width: `${Math.max(8, (p.metrics.bookInventory / maxInventory) * 100)}%` }}
                     >
-                      <span className="text-[10px] text-white font-medium">{p.book_inventory}</span>
+                      <span className="text-[10px] text-white font-medium">{p.metrics.bookInventory}</span>
                     </div>
                   </div>
                 </div>

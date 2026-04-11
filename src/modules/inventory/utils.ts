@@ -1,48 +1,101 @@
 import type { Product } from '../../lib/types';
 
-export function calculateProductMetrics(product: Product) {
-  // 3.1 Margin Calculations (from spec)
-  const transactionFees = product.base_price > 0 ? product.base_price * 0.029 + 0.30 : 0;
-  const netMargin = product.base_price - transactionFees
-    - product.production_cost - product.shipping_cost
-    - product.shipping_supplies_cost - product.handling_fee_add_on - product.pa_costs;
+// Fee rates — stored here so they can be adjusted universally
+// TikTok changes theirs periodically
+export const FEE_RATES = {
+  TRANSACTION_FEE_PERCENT: 0.029, // 2.9% for standard payment processing
+  TRANSACTION_FEE_FIXED: 0.30,    // $0.30 fixed per transaction
+  TIKTOK_FEE_PERCENT: 0.08,       // 8% TikTok Shop fee
+  TIKTOK_FEE_FIXED: 0.30,         // $0.30 fixed TikTok fee
+};
+
+export function calculateProductMetrics(product: Product, allProducts?: Product[]) {
+  // Transaction Fees: (basePrice * 0.029) + 0.30
+  const transactionFees = product.base_price > 0
+    ? (product.base_price * FEE_RATES.TRANSACTION_FEE_PERCENT) + FEE_RATES.TRANSACTION_FEE_FIXED
+    : 0;
+
+  // Net Margin ($): (basePrice + handlingFeeAddOn) - (productionCost + shippingCost + transactionFees + shippingSuppliesCost + paCosts)
+  // handlingFeeAddOn is REVENUE (extra charge to customer), not a cost
+  const netMargin = (product.base_price + product.handling_fee_add_on)
+    - (product.production_cost + product.shipping_cost + transactionFees
+       + product.shipping_supplies_cost + product.pa_costs);
+
+  // Net Margin %: netMargin / basePrice
   const netMarginPercent = product.base_price > 0 ? (netMargin / product.base_price) * 100 : 0;
 
-  // TT Shop margin includes freeShipping cost
-  const ttTransactionFees = product.tt_shop_price > 0 ? product.tt_shop_price * 0.029 + 0.30 : 0;
-  const ttNetMargin = product.tt_shop_price - ttTransactionFees
-    - product.production_cost - product.shipping_cost
-    - product.shipping_supplies_cost - product.handling_fee_add_on
-    - product.pa_costs - product.free_shipping;
+  // TikTok Fees: (ttShopPrice * 0.08) + 0.30
+  const ttFees = product.tt_shop_price > 0
+    ? (product.tt_shop_price * FEE_RATES.TIKTOK_FEE_PERCENT) + FEE_RATES.TIKTOK_FEE_FIXED
+    : 0;
+
+  // TikTok Net Margin ($): (ttShopPrice - ttFees) - (productionCost + shippingCost + freeShipping + shippingSuppliesCost + paCosts)
+  const ttNetMargin = (product.tt_shop_price - ttFees)
+    - (product.production_cost + product.shipping_cost + product.free_shipping
+       + product.shipping_supplies_cost + product.pa_costs);
+
+  // TikTok Net Margin %: ttNetMargin / ttShopPrice
   const ttNetMarginPercent = product.tt_shop_price > 0 ? (ttNetMargin / product.tt_shop_price) * 100 : 0;
 
-  // 3.2 Inventory Calculations
-  const avgDailySales = product.csv_avg_daily > 0
+  // Book Inventory: bookStock - (booksPurchased + purchasedViaBundles)
+  const bookInventory = product.book_stock - (product.books_purchased + product.purchased_via_bundles);
+
+  // Bundle Inventory: min of component books' bookInventory
+  let bundlesInventory = product.bundles_inventory;
+  if ((product.category === 'Bundle' || product.category === 'Book Box') && product.books_in_bundle && allProducts) {
+    bundlesInventory = calculateBundleInventory(product, allProducts);
+  }
+
+  // Average daily sales
+  const avgDailySalesBooks = product.csv_avg_daily > 0
     ? product.csv_avg_daily
     : product.six_month_book_sales / 180;
-  const reorderThreshold = product.csv_reorder_threshold > 0
-    ? product.csv_reorder_threshold
-    : Math.ceil(product.lead_time * avgDailySales);
-  const daysRemaining = avgDailySales > 0 ? product.book_inventory / avgDailySales : Infinity;
-  const reorderQty = product.book_inventory < reorderThreshold
-    ? reorderThreshold - product.book_inventory : 0;
-  const reorderCost = reorderQty * product.production_cost;
+  const avgDailySalesBundles = product.six_month_bundle_sales / 180;
 
-  // 3.3 Status Logic
-  let status: 'GOOD' | 'REORDER NOW' | 'BUNDLE' | 'TRACKING ONLY';
-  let action: string;
+  // Reorder Threshold: avgDailySalesBooks * leadTime
+  const reorderThreshold = Math.ceil(avgDailySalesBooks * product.lead_time);
 
-  if (product.do_not_reorder) {
-    status = 'TRACKING ONLY';
-    action = 'TRACKING ONLY';
-  } else if (product.category === 'Bundle' || product.category === 'Book Box') {
+  // Days of Inventory Remaining
+  let daysRemaining: number;
+  if (product.category === 'Bundle' || product.category === 'Book Box') {
+    daysRemaining = avgDailySalesBundles > 0 ? Math.round(bundlesInventory / avgDailySalesBundles) : Infinity;
+  } else {
+    daysRemaining = avgDailySalesBooks > 0 ? Math.round(bookInventory / avgDailySalesBooks) : Infinity;
+  }
+
+  // Inventory Status
+  let status: string;
+  if (product.category === 'Bundle' || product.category === 'Book Box') {
     status = 'BUNDLE';
-    action = 'BUNDLE';
-  } else if (product.book_inventory <= reorderThreshold && reorderThreshold > 0) {
+  } else if (product.do_not_reorder) {
+    status = 'TRACKING ONLY';
+  } else if (bookInventory <= 0) {
+    status = 'OUT OF STOCK';
+  } else if (daysRemaining !== Infinity && daysRemaining <= product.lead_time) {
     status = 'REORDER NOW';
+  } else {
+    status = 'Good';
+  }
+
+  // Reorder Quantity: reorderThreshold - bookInventory + (avgDailySales * leadTime)
+  let reorderQty = 0;
+  if (status === 'REORDER NOW' || status === 'OUT OF STOCK') {
+    reorderQty = Math.round(Math.max(
+      reorderThreshold - bookInventory + (avgDailySalesBooks * product.lead_time),
+      0
+    ));
+  }
+
+  // Reorder Cost: reorderQty * (productionCost + shippingCost)
+  const reorderCost = reorderQty * (product.production_cost + product.shipping_cost);
+
+  // Action Required
+  let action: string;
+  if (product.category === 'Bundle' || product.category === 'Book Box') {
+    action = 'BUNDLE';
+  } else if (status === 'REORDER NOW' || status === 'OUT OF STOCK') {
     action = 'ORDER THIS WEEK';
   } else {
-    status = 'GOOD';
     action = 'NO ACTION NEEDED';
   }
 
@@ -50,10 +103,13 @@ export function calculateProductMetrics(product: Product) {
     transactionFees,
     netMargin,
     netMarginPercent,
-    ttTransactionFees,
+    ttFees,
     ttNetMargin,
     ttNetMarginPercent,
-    avgDailySales,
+    bookInventory,
+    bundlesInventory,
+    avgDailySalesBooks,
+    avgDailySalesBundles,
     reorderThreshold,
     daysRemaining,
     reorderQty,
@@ -63,12 +119,9 @@ export function calculateProductMetrics(product: Product) {
   };
 }
 
-// 3.4 Bundle Auto-Calculation
-// bundlesInventory = minimum bookInventory across all component books
+// Bundle auto-calculation: bundlesInventory = minimum bookInventory across all component books
 export function calculateBundleInventory(product: Product, allProducts: Product[]): number {
-  if ((product.category !== 'Bundle' && product.category !== 'Book Box') || !product.books_in_bundle) {
-    return product.bundles_inventory;
-  }
+  if (!product.books_in_bundle) return product.bundles_inventory;
 
   const componentNames = product.books_in_bundle
     .split(',')
@@ -83,13 +136,14 @@ export function calculateBundleInventory(product: Product, allProducts: Product[
       p.name.toLowerCase().includes(name) ||
       name.includes(p.name.toLowerCase())
     );
-    return match ? match.book_inventory : 0;
+    if (!match) return 0;
+    return match.book_stock - (match.books_purchased + match.purchased_via_bundles);
   });
 
-  return Math.min(...componentInventories);
+  return componentInventories.length > 0 ? Math.min(...componentInventories) : 0;
 }
 
-// Margin color coding per spec: green >= 50%, yellow 40-49%, red < 40%
+// Margin color coding: green >= 50%, yellow 40-49%, red < 40%
 export function marginColor(percent: number): string {
   if (percent >= 50) return 'text-green-600';
   if (percent >= 40) return 'text-yellow-600';
@@ -105,4 +159,4 @@ export function formatPercent(value: number): string {
 }
 
 export const CATEGORIES = ['Paperback', 'Hardcover', 'Art Pack', 'Bundle', 'Book Box', 'Omnibus'] as const;
-export const STATUSES = ['GOOD', 'REORDER NOW', 'BUNDLE', 'TRACKING ONLY'] as const;
+export const STATUSES = ['Good', 'REORDER NOW', 'OUT OF STOCK', 'BUNDLE', 'TRACKING ONLY'] as const;
