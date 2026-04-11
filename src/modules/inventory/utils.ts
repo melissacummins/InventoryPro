@@ -46,21 +46,20 @@ export function calculateProductMetrics(product: Product, allProducts?: Product[
     bundlesInventory = calculateBundleInventory(product, allProducts);
   }
 
-  // Average daily sales
-  const avgDailySalesBooks = product.csv_avg_daily > 0
+  // Average daily sales — combines book AND bundle sales
+  const avgDailySales = product.csv_avg_daily > 0
     ? product.csv_avg_daily
-    : product.six_month_book_sales / 180;
-  const avgDailySalesBundles = product.six_month_bundle_sales / 180;
+    : (product.six_month_book_sales + product.six_month_bundle_sales) / 180;
 
-  // Reorder Threshold: avgDailySalesBooks * leadTime
-  const reorderThreshold = Math.ceil(avgDailySalesBooks * product.lead_time);
+  // Reorder Threshold: avgDailySales * leadTime
+  const reorderThreshold = Math.ceil(avgDailySales * product.lead_time);
 
   // Days of Inventory Remaining
   let daysRemaining: number;
   if (product.category === 'Bundle' || product.category === 'Book Box') {
-    daysRemaining = avgDailySalesBundles > 0 ? Math.round(bundlesInventory / avgDailySalesBundles) : Infinity;
+    daysRemaining = avgDailySales > 0 ? Math.round(bundlesInventory / avgDailySales) : Infinity;
   } else {
-    daysRemaining = avgDailySalesBooks > 0 ? Math.round(bookInventory / avgDailySalesBooks) : Infinity;
+    daysRemaining = avgDailySales > 0 ? Math.round(bookInventory / avgDailySales) : Infinity;
   }
 
   // Inventory Status
@@ -83,7 +82,7 @@ export function calculateProductMetrics(product: Product, allProducts?: Product[
   let reorderQty = 0;
   if (status === 'REORDER NOW' || status === 'OUT OF STOCK') {
     reorderQty = Math.round(Math.max(
-      reorderThreshold - bookInventory + (avgDailySalesBooks * product.lead_time),
+      reorderThreshold - bookInventory + (avgDailySales * product.lead_time),
       0
     ));
   }
@@ -112,8 +111,7 @@ export function calculateProductMetrics(product: Product, allProducts?: Product[
     ttNetMarginPercent,
     bookInventory,
     bundlesInventory,
-    avgDailySalesBooks,
-    avgDailySalesBundles,
+    avgDailySales,
     reorderThreshold,
     daysRemaining,
     reorderQty,

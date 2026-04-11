@@ -285,7 +285,7 @@ export default function ProductTable({ products, onRefetch, onAdjustStock }: Pro
                               </div>
                               <div>
                                 <p className="text-[11px] text-slate-400 uppercase mb-0.5">Avg Daily Sales</p>
-                                <span>{product.metrics.avgDailySalesBooks.toFixed(2)}</span>
+                                <span>{product.metrics.avgDailySales.toFixed(2)}</span>
                               </div>
                               {(product.category === 'Bundle' || product.category === 'Book Box') && (
                                 <div>
@@ -348,7 +348,7 @@ export default function ProductTable({ products, onRefetch, onAdjustStock }: Pro
                                 <EditableCell id={product.id} field="lead_time" value={product.lead_time} />
                               </div>
                               <div>
-                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">Safety Threshold</p>
+                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">Reorder Threshold</p>
                                 <span>{product.metrics.reorderThreshold}</span>
                               </div>
                               <div>
