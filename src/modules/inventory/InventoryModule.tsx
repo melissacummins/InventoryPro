@@ -1,29 +1,81 @@
-import { Package, Upload, ArrowRight } from 'lucide-react';
+import { useState } from 'react';
+import { LayoutDashboard, List, Plus } from 'lucide-react';
+import { useProducts } from './hooks/useProducts';
+import Dashboard from './components/Dashboard';
+import ProductTable from './components/ProductTable';
+import AddProductForm from './components/AddProductForm';
+import StockModal from './components/StockModal';
+import Modal from '../../components/Modal';
+import type { Product } from '../../lib/types';
+
+type Tab = 'dashboard' | 'products';
 
 export default function InventoryModule() {
-  return (
-    <div className="p-6 lg:p-8 max-w-5xl mx-auto">
-      <div className="text-center py-16">
-        <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl shadow-lg shadow-blue-500/25 mb-6">
-          <Package className="w-10 h-10 text-white" />
-        </div>
-        <h2 className="text-2xl font-bold text-slate-800 mb-2">Inventory</h2>
-        <p className="text-slate-500 max-w-md mx-auto mb-8">
-          Track product stock levels, manage purchase orders, store book specs and printer quotes, and get automatic reorder alerts.
-        </p>
-        <div className="bg-slate-50 rounded-2xl p-6 max-w-lg mx-auto border border-slate-200">
-          <h3 className="font-semibold text-slate-700 mb-3 flex items-center gap-2">
-            <Upload className="w-4 h-4" /> Coming Up
-          </h3>
-          <ul className="text-sm text-slate-600 space-y-2 text-left">
-            <li className="flex items-center gap-2"><ArrowRight className="w-3 h-3 text-blue-500 shrink-0" /> Full product catalog with search and filtering</li>
-            <li className="flex items-center gap-2"><ArrowRight className="w-3 h-3 text-blue-500 shrink-0" /> Purchase order tracking with arrival updates</li>
-            <li className="flex items-center gap-2"><ArrowRight className="w-3 h-3 text-blue-500 shrink-0" /> Shopify CSV import for sales data</li>
-            <li className="flex items-center gap-2"><ArrowRight className="w-3 h-3 text-blue-500 shrink-0" /> Margin calculations and reorder alerts</li>
-            <li className="flex items-center gap-2"><ArrowRight className="w-3 h-3 text-blue-500 shrink-0" /> Firebase data migration tool</li>
-          </ul>
-        </div>
+  const { products, loading, refetch } = useProducts();
+  const [tab, setTab] = useState<Tab>('dashboard');
+  const [showAddProduct, setShowAddProduct] = useState(false);
+  const [stockProduct, setStockProduct] = useState<Product | null>(null);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
       </div>
+    );
+  }
+
+  return (
+    <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
+          <button
+            onClick={() => setTab('dashboard')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              tab === 'dashboard' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <LayoutDashboard className="w-4 h-4" /> Dashboard
+          </button>
+          <button
+            onClick={() => setTab('products')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              tab === 'products' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <List className="w-4 h-4" /> Products
+          </button>
+        </div>
+
+        <button
+          onClick={() => setShowAddProduct(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 shadow-sm"
+        >
+          <Plus className="w-4 h-4" /> Add Product
+        </button>
+      </div>
+
+      {/* Content */}
+      {tab === 'dashboard' && <Dashboard products={products} />}
+      {tab === 'products' && (
+        <ProductTable
+          products={products}
+          onRefetch={refetch}
+          onAdjustStock={setStockProduct}
+        />
+      )}
+
+      {/* Add Product Modal */}
+      <Modal open={showAddProduct} onClose={() => setShowAddProduct(false)} title="Add New Product" maxWidth="max-w-2xl">
+        <AddProductForm onClose={() => setShowAddProduct(false)} onRefetch={refetch} />
+      </Modal>
+
+      {/* Stock Adjustment Modal */}
+      <Modal open={!!stockProduct} onClose={() => setStockProduct(null)} title="Adjust Stock">
+        {stockProduct && (
+          <StockModal product={stockProduct} onClose={() => setStockProduct(null)} onRefetch={refetch} />
+        )}
+      </Modal>
     </div>
   );
 }
