@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { LayoutDashboard, List, Plus } from 'lucide-react';
+import { LayoutDashboard, List, Plus, Download } from 'lucide-react';
 import { useProducts } from './hooks/useProducts';
 import Dashboard from './components/Dashboard';
 import ProductTable from './components/ProductTable';
 import AddProductForm from './components/AddProductForm';
 import StockModal from './components/StockModal';
+import MigrationTool from './components/MigrationTool';
 import Modal from '../../components/Modal';
 import type { Product } from '../../lib/types';
 
@@ -15,6 +16,7 @@ export default function InventoryModule() {
   const [tab, setTab] = useState<Tab>('dashboard');
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [stockProduct, setStockProduct] = useState<Product | null>(null);
+  const [showMigration, setShowMigration] = useState(false);
 
   if (loading) {
     return (
@@ -47,16 +49,30 @@ export default function InventoryModule() {
           </button>
         </div>
 
-        <button
-          onClick={() => setShowAddProduct(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 shadow-sm"
-        >
-          <Plus className="w-4 h-4" /> Add Product
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowMigration(true)}
+            className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50"
+          >
+            <Download className="w-4 h-4" /> Import from Firebase
+          </button>
+          <button
+            onClick={() => setShowAddProduct(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 shadow-sm"
+          >
+            <Plus className="w-4 h-4" /> Add Product
+          </button>
+        </div>
       </div>
 
       {/* Content */}
-      {tab === 'dashboard' && <Dashboard products={products} />}
+      {tab === 'dashboard' && (
+        <Dashboard
+          products={products}
+          onAddProduct={() => setShowAddProduct(true)}
+          onAdjustStock={() => setTab('products')}
+        />
+      )}
       {tab === 'products' && (
         <ProductTable
           products={products}
@@ -75,6 +91,11 @@ export default function InventoryModule() {
         {stockProduct && (
           <StockModal product={stockProduct} onClose={() => setStockProduct(null)} onRefetch={refetch} />
         )}
+      </Modal>
+
+      {/* Migration Modal */}
+      <Modal open={showMigration} onClose={() => setShowMigration(false)} title="Import from InventoryPro">
+        <MigrationTool onComplete={() => { refetch(); }} />
       </Modal>
     </div>
   );
