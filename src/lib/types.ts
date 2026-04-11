@@ -1,89 +1,412 @@
+// ============================================
+// AUTH & USER
+// ============================================
+export interface Profile {
+  id: string;
+  email: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  role: 'admin' | 'user';
+  created_at: string;
+  updated_at: string;
+}
+
+// ============================================
+// INVENTORY MODULE
+// ============================================
+export type ProductCategory = 'Paperback' | 'Hardcover' | 'Art Pack' | 'Bundle' | 'Book Box' | 'Omnibus';
+
 export interface Product {
-  id: string; // Firestore document ID
+  id: string;
+  user_id: string;
   name: string;
   sku: string;
-  category: "Paperback" | "Hardcover" | "Art Pack" | "Bundle" | "Book Box" | "Omnibus";
-  basePrice: number;
-  productionCost: number;
-  shippingCost: number;
-  shippingSuppliesCost: number;
-  paCosts: number;
-  handlingFeeAddOn: number;
-  ttShopPrice: number;
-  freeShipping: number;
-  bookStock: number;
-  booksPurchased: number;
-  bundlesPurchased: number;
-  purchasedViaBundles: number;
-  bookInventory: number;
-  bundlesInventory: number;
-  sixMonthBookSales: number;
-  sixMonthBundleSales: number;
-  leadTime: number;
-  booksInBundle: string;
+  category: ProductCategory;
+  base_price: number;
+  production_cost: number;
+  shipping_cost: number;
+  shipping_supplies_cost: number;
+  pa_costs: number;
+  handling_fee_add_on: number;
+  tt_shop_price: number;
+  free_shipping: number;
+  book_stock: number;
+  books_purchased: number;
+  bundles_purchased: number;
+  purchased_via_bundles: number;
+  book_inventory: number;
+  bundles_inventory: number;
+  six_month_book_sales: number;
+  six_month_bundle_sales: number;
+  lead_time: number;
+  books_in_bundle: string;
   bundles: string;
-  csvAvgDaily: number;
-  csvReorderThreshold: number;
-  doNotReorder?: boolean;
-  createdAt: string;
-  updatedAt: string;
+  csv_avg_daily: number;
+  csv_reorder_threshold: number;
+  do_not_reorder: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InventoryOrder {
+  id: string;
+  user_id: string;
+  product_id: string;
+  type: 'add' | 'subtract' | 'csv_import' | 'stock_reset';
+  inventory_type: 'book' | 'bundle';
+  quantity: number;
+  previous_value: number;
+  new_value: number;
+  source: string;
+  notes: string;
+  created_at: string;
 }
 
 export interface PurchaseOrder {
   id: string;
-  productId: string;
-  productName: string;
+  user_id: string;
+  product_id: string;
+  product_name: string;
   quantity: number;
-  orderDate: string;
-  expectedDispatch: string;
-  expectedArrival: string;
-  actualArrival?: string;
+  order_date: string;
+  expected_dispatch: string;
+  expected_arrival: string;
+  actual_arrival: string | null;
   status: 'pending' | 'arrived';
-  createdAt: string;
-}
-
-export interface Order {
-  id: string;
-  productId: string;
-  type: "add" | "subtract" | "csv_import" | "stock_reset";
-  inventoryType: "book" | "bundle";
-  quantity: number;
-  previousValue: number;
-  newValue: number;
-  source: string;
-  notes: string;
-  createdAt: string;
+  created_at: string;
 }
 
 export interface BookSpec {
   id: string;
-  productId: string;
+  user_id: string;
+  product_id: string;
   printer: string;
-  trimSize: string;
-  pageCount: number;
-  paperType: string;
-  coverType: string;
+  trim_size: string;
+  page_count: number;
+  paper_type: string;
+  cover_type: string;
   binding: string;
-  interiorColor: string;
+  interior_color: string;
   isbn: string;
   weight: number;
   notes: string;
-  createdAt: string;
-  updatedAt: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface PrinterQuote {
   id: string;
-  productId: string;
+  user_id: string;
+  product_id: string;
   printer: string;
   quantity: number;
-  unitCost: number;
-  totalCost: number;
+  unit_cost: number;
+  total_cost: number;
   turnaround: string;
-  shippingEstimate: number;
-  quoteDate: string;
-  expiresDate: string;
+  shipping_estimate: number;
+  quote_date: string;
+  expires_date: string;
   notes: string;
-  createdAt: string;
-  updatedAt: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// ============================================
+// CROSS-SELL MODULE
+// ============================================
+export interface RelatedProduct {
+  name: string;
+  count: number;
+}
+
+export interface ProductAnalysis {
+  id: string;
+  name: string;
+  totalTransactions: number;
+  relatedProducts: RelatedProduct[];
+  topUpsell: RelatedProduct | null;
+}
+
+export interface CrossSellReport {
+  id: string;
+  user_id: string;
+  year: string;
+  data: ProductAnalysis[];
+  created_at: string;
+  updated_at: string;
+}
+
+// ============================================
+// BOOK TRACKER MODULE
+// ============================================
+export interface CostItem {
+  category: string;
+  amount: number;
+}
+
+export interface QuarterlyUpdate {
+  id: string;
+  user_id: string;
+  book_id: string;
+  quarter: string;
+  profit: number;
+  date: string;
+  created_at: string;
+}
+
+export interface TrackedBook {
+  id: string;
+  user_id: string;
+  title: string;
+  dev_cost: number;
+  cost_breakdown: CostItem[];
+  launch_date: string | null;
+  status: 'active' | 'paid_off';
+  cumulative_profit: number;
+  payoff_date: string | null;
+  months_to_payoff: number | null;
+  final_profit: number | null;
+  payoff_quarter: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// ============================================
+// PROFIT TRACK MODULE
+// ============================================
+export interface DailyRecord {
+  id: string;
+  user_id: string;
+  date: string;
+  pnr_ads: number;
+  contemp_ads: number;
+  traffic_ads: number;
+  misc_ads: number;
+  shopify_rev: number;
+  amazon_rev: number;
+  d2d_rev: number;
+  google_rev: number;
+  kobo_rev: number;
+  kobo_plus_rev: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WeeklyNote {
+  id: string;
+  user_id: string;
+  week_start_date: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrderSource {
+  id: string;
+  user_id: string;
+  name: string;
+  multiplier: number;
+  is_system: boolean;
+  is_archived: boolean;
+  created_at: string;
+}
+
+export interface MonthlyOrderEntry {
+  id: string;
+  user_id: string;
+  month_key: string;
+  source_id: string;
+  count: number;
+  snapshot_multiplier: number | null;
+  created_at: string;
+}
+
+export interface MonthlyPageReads {
+  id: string;
+  user_id: string;
+  month_key: string;
+  reads: number;
+  created_at: string;
+}
+
+export interface BookProduct {
+  id: string;
+  user_id: string;
+  title: string;
+  series: string;
+  is_bundle: boolean;
+  included_book_ids: string[];
+  language: string;
+  parent_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BookDailyMetric {
+  id: string;
+  user_id: string;
+  date: string;
+  book_id: string;
+  pnr_ads: number;
+  contemp_ads: number;
+  traffic_ads: number;
+  misc_ads: number;
+  shopify_rev: number;
+  amazon_rev: number;
+  d2d_rev: number;
+  google_rev: number;
+  kobo_rev: number;
+  kobo_plus_rev: number;
+  created_at: string;
+}
+
+// ============================================
+// AD ALCHEMY MODULE
+// ============================================
+export interface AdProject {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string | null;
+  target_cpr: number | null;
+  target_roas: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type MediaType = 'Video' | 'Image' | 'Unknown';
+
+export interface EnrichedAd {
+  id: string;
+  user_id: string;
+  project_id: string | null;
+  ad_name: string;
+  ad_set_name: string;
+  date_created: string;
+  spend: number;
+  results: number;
+  cost_per_result: number;
+  roas: number;
+  ctr: number;
+  cost_per_lpv: number;
+  lpv_count: number;
+  purchase_value: number;
+  purchase_rate_lpv: number;
+  product_type: string;
+  hook: string;
+  media_type: MediaType;
+  media_number: string;
+  is_archived: boolean;
+  thumbnail_url: string | null;
+  creative_name: string | null;
+  notes: string | null;
+  ad_copy: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// ============================================
+// FINSTREAM MODULE
+// ============================================
+export interface Transaction {
+  id: string;
+  user_id: string;
+  date: string;
+  description: string;
+  original_description: string;
+  amount: number;
+  category: string;
+  source: string;
+  type: 'income' | 'expense';
+  created_at: string;
+}
+
+export interface CategoryRule {
+  id: string;
+  user_id: string;
+  match_string: string;
+  target_category: string;
+  type: 'income' | 'expense' | null;
+  created_at: string;
+}
+
+export interface ManualSubscription {
+  id: string;
+  user_id: string;
+  vendor_name: string;
+  match_string: string | null;
+  frequency: 'Monthly' | 'Yearly' | 'Weekly';
+  amount: number | null;
+  created_at: string;
+}
+
+export interface CashFlowNote {
+  id: string;
+  user_id: string;
+  month: string;
+  note: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ManualHistoryEntry {
+  id: string;
+  user_id: string;
+  month: string;
+  amount: number;
+  description: string;
+  created_at: string;
+}
+
+// ============================================
+// KDP OPTIMIZER MODULE
+// ============================================
+export interface Trope {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string;
+  created_at: string;
+}
+
+export interface KdpBook {
+  id: string;
+  user_id: string;
+  title: string;
+  subtitle: string | null;
+  series: string;
+  amazon_categories: string;
+  assigned_trope_ids: string[];
+  selected_keyword_ids: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface KdpKeyword {
+  id: string;
+  user_id: string;
+  text: string;
+  trope_id: string;
+  search_volume: number;
+  search_volume_color: string;
+  competitive_score: number;
+  competitive_score_color: string;
+  competitors: number;
+  avg_pages: number;
+  avg_price: number;
+  avg_monthly_earnings: number;
+  last_updated: number | null;
+  created_at: string;
+}
+
+// ============================================
+// MODULE DEFINITIONS
+// ============================================
+export interface ModuleDefinition {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  path: string;
+  color: string;
 }

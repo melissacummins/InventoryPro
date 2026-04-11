@@ -1,119 +1,114 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { auth, db, googleProvider } from '../firebase';
-import { onAuthStateChanged, signInWithPopup, signOut, User } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { handleFirestoreError, OperationType } from '../lib/api';
+import { supabase } from '../lib/supabase';
+import type { User, Session } from '@supabase/supabase-js';
+import type { Profile } from '../lib/types';
 
 interface AuthContextType {
   user: User | null;
-  isAdmin: boolean;
-  role: string | null;
+  session: Session | null;
+  profile: Profile | null;
   loading: boolean;
-  login: () => Promise<void>;
-  logout: () => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<{ error: string | null }>;
+  signUpWithEmail: (email: string, password: string, fullName: string) => Promise<{ error: string | null }>;
+  signOut: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | null>(null);
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [role, setRole] = useState<string | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-
-  if (error) {
-    throw error; // This will be caught by the ErrorBoundary
-  }
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      if (currentUser) {
-        setLoading(true); // Prevent flash of unauthorized while fetching role
-        
-        // Check if user is admin
-        try {
-          const userDocRef = doc(db, 'users', currentUser.uid);
-          const userDoc = await getDoc(userDocRef);
-          
-          let currentRole = 'user';
-          let currentIsAdmin = false;
-
-          if (userDoc.exists()) {
-            currentRole = userDoc.data().role;
-            currentIsAdmin = currentRole === 'admin';
-          } else {
-            // Bootstrapping the first admin
-            if (currentUser.email === 'melissa@melissacummins.com' && currentUser.emailVerified) {
-              await setDoc(userDocRef, {
-                email: currentUser.email,
-                role: 'admin'
-              });
-              currentRole = 'admin';
-              currentIsAdmin = true;
-            } else {
-              // Default new users to 'user' role
-              await setDoc(userDocRef, {
-                email: currentUser.email,
-                role: 'user'
-              });
-              currentRole = 'user';
-              currentIsAdmin = false;
-            }
-          }
-          
-          setRole(currentRole);
-          setIsAdmin(currentIsAdmin);
-          setUser(currentUser);
-        } catch (err) {
-          console.error("Error checking admin status:", err);
-          setRole(null);
-          setIsAdmin(false);
-          setUser(null);
-          try {
-            handleFirestoreError(err, OperationType.GET, `users/${currentUser.uid}`);
-          } catch (handledError) {
-            setError(handledError as Error);
-          }
-        } finally {
-          setLoading(false);
-        }
-      } else {
-        setUser(null);
-        setRole(null);
-        setIsAdmin(false);
-        setLoading(false);
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        fetchProfile(session.user.id);
       }
+      setLoading(false);
     });
 
-    return unsubscribe;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        fetchProfile(session.user.id);
+      } else {
+        setProfile(null);
+      }
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const login = async () => {
-    try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (error) {
-      console.error("Login failed:", error);
-    }
-  };
+  async function fetchProfile(userId: string) {
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+    setProfile(data);
+  }
 
-  const logout = async () => {
-    try {
-      await signOut(auth);
-    } catch (error) {
-      console.error("Logout failed:", error);
-    }
-  };
+  async function signInWithGoogle() {
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
+  }
+
+  async function signInWithEmail(email: string, password: string): Promise<{ error: string | null }> {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return { error: error.message };
+    return { error: null };
+  }
+
+  async function signUpWithEmail(email: string, password: string, fullName: string): Promise<{ error: string | null }> {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { full_name: fullName },
+      },
+    });
+    if (error) return { error: error.message };
+    return { error: null };
+  }
+
+  async function signOut() {
+    await supabase.auth.signOut();
+    setUser(null);
+    setSession(null);
+    setProfile(null);
+  }
 
   return (
-    <AuthContext.Provider value={{ user, isAdmin, role, loading, login, logout }}>
+    <AuthContext.Provider value={{
+      user,
+      session,
+      profile,
+      loading,
+      signInWithGoogle,
+      signInWithEmail,
+      signUpWithEmail,
+      signOut,
+    }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-export const useAuth = () => {
+export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) throw new Error("useAuth must be used within an AuthProvider");
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
   return context;
-};
+}
