@@ -1,7 +1,7 @@
 import { Package, AlertTriangle, TrendingUp, DollarSign, RefreshCw, Plus, Search } from 'lucide-react';
 import type { Product } from '../../../lib/types';
 import { useAuth } from '../../../contexts/AuthContext';
-import { calculateProductMetrics, formatCurrency, formatPercent } from '../utils';
+import { calculateProductMetrics, formatCurrency, formatPercent, marginColor } from '../utils';
 
 interface DashboardProps {
   products: Product[];
@@ -26,10 +26,7 @@ export default function Dashboard({ products, onAddProduct, onAdjustStock }: Das
     .filter(p => p.metrics.status === 'REORDER NOW')
     .sort((a, b) => a.metrics.daysRemaining - b.metrics.daysRemaining);
 
-  const estimatedReorderCost = reorderProducts.reduce((sum, p) => {
-    const qty = Math.max(0, p.metrics.reorderThreshold - p.book_inventory);
-    return sum + (qty * p.production_cost);
-  }, 0);
+  const estimatedReorderCost = reorderProducts.reduce((sum, p) => sum + p.metrics.reorderCost, 0);
 
   const topInventory = [...enriched]
     .filter(p => p.category !== 'Bundle')

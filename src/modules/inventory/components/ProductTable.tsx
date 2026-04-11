@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Search, ChevronDown, ChevronUp, ChevronRight, Edit2, Check, X, Plus, Minus, Trash2 } from 'lucide-react';
 import type { Product } from '../../../lib/types';
-import { calculateProductMetrics, formatCurrency, formatPercent, CATEGORIES, STATUSES } from '../utils';
+import { calculateProductMetrics, formatCurrency, formatPercent, marginColor, CATEGORIES, STATUSES } from '../utils';
 import { updateProduct, deleteProduct } from '../api';
 
 interface ProductTableProps {
@@ -122,10 +122,10 @@ export default function ProductTable({ products, onRefetch, onAdjustStock }: Pro
 
   function StatusBadge({ status }: { status: string }) {
     const colors: Record<string, string> = {
-      'GOOD': 'bg-green-100 text-green-700',
-      'REORDER NOW': 'bg-red-100 text-red-700',
-      'BUNDLE': 'bg-purple-100 text-purple-700',
-      'TRACKING ONLY': 'bg-slate-100 text-slate-600',
+      'GOOD': 'bg-green-50 text-green-700 border border-green-200',
+      'REORDER NOW': 'bg-red-50 text-red-700 border border-red-200',
+      'BUNDLE': 'bg-blue-50 text-blue-700 border border-blue-200',
+      'TRACKING ONLY': 'bg-slate-50 text-slate-600 border border-slate-200',
     };
     return <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${colors[status] || 'bg-slate-100'}`}>{status}</span>;
   }
@@ -216,7 +216,7 @@ export default function ProductTable({ products, onRefetch, onAdjustStock }: Pro
                       <EditableCell id={product.id} field="base_price" value={product.base_price} format={formatCurrency} />
                     </td>
                     <td className="px-3 py-3">
-                      <span className={product.metrics.netMarginPercent >= 0 ? 'text-green-600' : 'text-red-600'}>
+                      <span className={marginColor(product.metrics.netMarginPercent)}>
                         {formatPercent(product.metrics.netMarginPercent)}
                       </span>
                     </td>
@@ -271,13 +271,13 @@ export default function ProductTable({ products, onRefetch, onAdjustStock }: Pro
                           </div>
                           <div>
                             <p className="text-slate-500 text-xs mb-1">TT Shop Margin</p>
-                            <span className={product.metrics.ttNetMarginPercent >= 0 ? 'text-green-600' : 'text-red-600'}>
+                            <span className={marginColor(product.metrics.ttNetMarginPercent)}>
                               {formatCurrency(product.metrics.ttNetMargin)} ({formatPercent(product.metrics.ttNetMarginPercent)})
                             </span>
                           </div>
                           <div>
                             <p className="text-slate-500 text-xs mb-1">Net Margin</p>
-                            <span className={product.metrics.netMargin >= 0 ? 'text-green-600' : 'text-red-600'}>
+                            <span className={marginColor(product.metrics.netMarginPercent)}>
                               {formatCurrency(product.metrics.netMargin)} ({formatPercent(product.metrics.netMarginPercent)})
                             </span>
                           </div>
@@ -312,11 +312,27 @@ export default function ProductTable({ products, onRefetch, onAdjustStock }: Pro
                             <span>{product.metrics.reorderThreshold}</span>
                           </div>
                           <div>
-                            <p className="text-slate-500 text-xs mb-1">Do Not Reorder</p>
-                            <span>{product.do_not_reorder ? 'Yes' : 'No'}</span>
+                            <p className="text-slate-500 text-xs mb-1">Reorder Qty</p>
+                            <span>{product.metrics.reorderQty > 0 ? product.metrics.reorderQty : '—'}</span>
+                          </div>
+                          <div>
+                            <p className="text-slate-500 text-xs mb-1">Reorder Cost</p>
+                            <span>{product.metrics.reorderCost > 0 ? formatCurrency(product.metrics.reorderCost) : '—'}</span>
+                          </div>
+                          <div>
+                            <p className="text-slate-500 text-xs mb-1">Action</p>
+                            <span className="text-xs font-medium">{product.metrics.action}</span>
                           </div>
                         </div>
-                        {product.books_in_bundle && (
+                        {(product.category === 'Bundle' || product.category === 'Book Box') && product.books_in_bundle && (
+                          <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                            <p className="text-sm font-medium text-blue-700 mb-1">Bundle Auto-Calculation</p>
+                            <p className="text-xs text-blue-600">
+                              Availability ({product.bundles_inventory}) = minimum inventory across component books: {product.books_in_bundle}
+                            </p>
+                          </div>
+                        )}
+                        {product.books_in_bundle && (product.category !== 'Bundle' && product.category !== 'Book Box') && (
                           <div className="mt-3">
                             <p className="text-slate-500 text-xs mb-1">Books in Bundle</p>
                             <p className="text-sm">{product.books_in_bundle}</p>

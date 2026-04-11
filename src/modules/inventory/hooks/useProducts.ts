@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../../lib/supabase';
 import type { Product } from '../../../lib/types';
+import { calculateBundleInventory } from '../utils';
 
 export function useProducts() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -11,7 +12,17 @@ export function useProducts() {
       .from('products')
       .select('*')
       .order('name');
-    if (!error && data) setProducts(data);
+    if (!error && data) {
+      // Auto-calculate bundle inventory based on component books
+      const withBundles = data.map(product => {
+        if (product.category === 'Bundle' || product.category === 'Book Box') {
+          const bundleInv = calculateBundleInventory(product, data);
+          return { ...product, bundles_inventory: bundleInv };
+        }
+        return product;
+      });
+      setProducts(withBundles);
+    }
     setLoading(false);
   }, []);
 
