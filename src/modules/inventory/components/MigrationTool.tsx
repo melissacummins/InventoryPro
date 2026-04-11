@@ -1,93 +1,97 @@
-import React, { useState } from 'react';
-import { Download, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
-import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, getDocs } from 'firebase/firestore';
-import { getAuth, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import React, { useState, useRef } from 'react';
+import { Upload, CheckCircle, AlertCircle, Loader2, FileText } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 
-const FIREBASE_CONFIG = {
-  projectId: "gen-lang-client-0972859592",
-  appId: "1:104294335132:web:246b3da9fdd1aa88ad2359",
-  apiKey: "AIzaSyBoFO4skLJ29eQ7yJrk0JhGZL6ItUB1Azc",
-  authDomain: "gen-lang-client-0972859592.firebaseapp.com",
-  storageBucket: "gen-lang-client-0972859592.firebasestorage.app",
-  messagingSenderId: "104294335132",
-};
-const FIRESTORE_DB_ID = "ai-studio-20426c88-9892-49be-be11-1ee14c9086a1";
-
 // Map camelCase Firebase fields to snake_case Supabase fields
-function mapProduct(doc: any) {
-  const d = doc;
+function mapProduct(d: any) {
   return {
     name: d.name || '',
     sku: d.sku || '',
     category: d.category || 'Paperback',
-    base_price: d.basePrice || 0,
-    production_cost: d.productionCost || 0,
-    shipping_cost: d.shippingCost || 0,
-    shipping_supplies_cost: d.shippingSuppliesCost || 0,
-    pa_costs: d.paCosts || 0,
-    handling_fee_add_on: d.handlingFeeAddOn || 0,
-    tt_shop_price: d.ttShopPrice || 0,
-    free_shipping: d.freeShipping || 0,
-    book_stock: d.bookStock || 0,
-    books_purchased: d.booksPurchased || 0,
-    bundles_purchased: d.bundlesPurchased || 0,
-    purchased_via_bundles: d.purchasedViaBundles || 0,
-    book_inventory: d.bookInventory || 0,
-    bundles_inventory: d.bundlesInventory || 0,
-    six_month_book_sales: d.sixMonthBookSales || 0,
-    six_month_bundle_sales: d.sixMonthBundleSales || 0,
-    lead_time: d.leadTime || 0,
-    books_in_bundle: d.booksInBundle || '',
-    bundles: d.bundles || '',
-    csv_avg_daily: d.csvAvgDaily || 0,
-    csv_reorder_threshold: d.csvReorderThreshold || 0,
-    do_not_reorder: d.doNotReorder || false,
+    base_price: d.basePrice ?? d.base_price ?? 0,
+    production_cost: d.productionCost ?? d.production_cost ?? 0,
+    shipping_cost: d.shippingCost ?? d.shipping_cost ?? 0,
+    shipping_supplies_cost: d.shippingSuppliesCost ?? d.shipping_supplies_cost ?? 0,
+    pa_costs: d.paCosts ?? d.pa_costs ?? 0,
+    handling_fee_add_on: d.handlingFeeAddOn ?? d.handling_fee_add_on ?? 0,
+    tt_shop_price: d.ttShopPrice ?? d.tt_shop_price ?? 0,
+    free_shipping: d.freeShipping ?? d.free_shipping ?? 0,
+    book_stock: d.bookStock ?? d.book_stock ?? 0,
+    books_purchased: d.booksPurchased ?? d.books_purchased ?? 0,
+    bundles_purchased: d.bundlesPurchased ?? d.bundles_purchased ?? 0,
+    purchased_via_bundles: d.purchasedViaBundles ?? d.purchased_via_bundles ?? 0,
+    book_inventory: d.bookInventory ?? d.book_inventory ?? 0,
+    bundles_inventory: d.bundlesInventory ?? d.bundles_inventory ?? 0,
+    six_month_book_sales: d.sixMonthBookSales ?? d.six_month_book_sales ?? 0,
+    six_month_bundle_sales: d.sixMonthBundleSales ?? d.six_month_bundle_sales ?? 0,
+    lead_time: d.leadTime ?? d.lead_time ?? 0,
+    books_in_bundle: d.booksInBundle ?? d.books_in_bundle ?? '',
+    bundles: d.bundles ?? '',
+    csv_avg_daily: d.csvAvgDaily ?? d.csv_avg_daily ?? 0,
+    csv_reorder_threshold: d.csvReorderThreshold ?? d.csv_reorder_threshold ?? 0,
+    do_not_reorder: d.doNotReorder ?? d.do_not_reorder ?? false,
   };
 }
 
+const EXPORT_SCRIPT = `// Run this in your old InventoryPro app's browser console (F12 > Console)
+// It will download a JSON file with all your data.
+
+(async () => {
+  const { getFirestore, collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+  const app = window.__FIREBASE_APP__ || (await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js')).getApps()[0];
+
+  // Try to get the Firestore instance that's already initialized
+  const db = getFirestore(app);
+
+  const collections = ['products', 'orders', 'purchaseOrders', 'bookSpecs', 'printerQuotes'];
+  const data = {};
+
+  for (const col of collections) {
+    try {
+      const snap = await getDocs(collection(db, col));
+      data[col] = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      console.log(col + ': ' + data[col].length + ' docs');
+    } catch(e) {
+      console.log('Skipping ' + col + ': ' + e.message);
+      data[col] = [];
+    }
+  }
+
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'inventorypro-export.json';
+  a.click();
+  console.log('Download started!');
+})();`;
+
 export default function MigrationTool({ onComplete }: { onComplete: () => void }) {
-  const [status, setStatus] = useState<'idle' | 'signing_in' | 'reading' | 'writing' | 'done' | 'error'>('idle');
+  const [status, setStatus] = useState<'idle' | 'processing' | 'done' | 'error'>('idle');
   const [progress, setProgress] = useState('');
   const [counts, setCounts] = useState({ products: 0, orders: 0, purchaseOrders: 0 });
   const [error, setError] = useState<string | null>(null);
+  const [showScript, setShowScript] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  async function startMigration() {
-    setStatus('signing_in');
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setStatus('processing');
     setError(null);
-    setProgress('Connecting to Firebase...');
+    setProgress('Reading file...');
 
     try {
-      // Initialize Firebase
-      const firebaseApp = initializeApp(FIREBASE_CONFIG, 'migration');
-      const db = getFirestore(firebaseApp, FIRESTORE_DB_ID);
-      const auth = getAuth(firebaseApp);
-      const provider = new GoogleAuthProvider();
+      const text = await file.text();
+      const data = JSON.parse(text);
 
-      // Sign in to Firebase
-      setProgress('Please sign in with your Google account...');
-      await signInWithPopup(auth, provider);
+      const products = data.products || [];
+      const orders = data.orders || [];
+      const purchaseOrders = data.purchaseOrders || [];
 
-      // Read products
-      setStatus('reading');
-      setProgress('Reading products from Firebase...');
-      const productsSnap = await getDocs(collection(db, 'products'));
-      const products = productsSnap.docs.map(doc => ({ firebaseId: doc.id, ...doc.data() }));
-      setProgress(`Found ${products.length} products. Reading orders...`);
+      setProgress(`Found ${products.length} products, ${orders.length} orders, ${purchaseOrders.length} POs. Importing...`);
 
-      // Read orders
-      const ordersSnap = await getDocs(collection(db, 'orders'));
-      const orders = ordersSnap.docs.map(doc => doc.data());
-      setProgress(`Found ${orders.length} orders. Reading purchase orders...`);
-
-      // Read purchase orders
-      const poSnap = await getDocs(collection(db, 'purchaseOrders'));
-      const purchaseOrders = poSnap.docs.map(doc => doc.data());
-      setProgress(`Found ${purchaseOrders.length} purchase orders. Writing to Supabase...`);
-
-      // Write to Supabase
-      setStatus('writing');
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not signed into Supabase');
 
@@ -97,17 +101,17 @@ export default function MigrationTool({ onComplete }: { onComplete: () => void }
 
       for (const product of products) {
         const mapped = mapProduct(product);
-        const { data, error: insertErr } = await supabase
+        const { data: inserted, error: insertErr } = await supabase
           .from('products')
           .insert({ ...mapped, user_id: user.id })
           .select('id')
           .single();
 
         if (insertErr) {
-          console.error('Failed to insert product:', (product as any).name, insertErr);
+          console.error('Failed to insert product:', product.name, insertErr);
           continue;
         }
-        firebaseIdToSupabaseId[(product as any).firebaseId] = data.id;
+        if (product.id) firebaseIdToSupabaseId[product.id] = inserted.id;
         insertedProducts++;
         setProgress(`Imported ${insertedProducts}/${products.length} products...`);
       }
@@ -155,11 +159,10 @@ export default function MigrationTool({ onComplete }: { onComplete: () => void }
 
       setCounts({ products: insertedProducts, orders: insertedOrders, purchaseOrders: insertedPOs });
       setStatus('done');
-      setProgress('Migration complete!');
       onComplete();
     } catch (err: any) {
-      console.error('Migration error:', err);
-      setError(err.message || 'Migration failed');
+      console.error('Import error:', err);
+      setError(err.message || 'Import failed');
       setStatus('error');
     }
   }
@@ -168,46 +171,81 @@ export default function MigrationTool({ onComplete }: { onComplete: () => void }
     <div className="space-y-4">
       {status === 'idle' && (
         <>
-          <p className="text-sm text-slate-600">
-            This will connect to your old InventoryPro Firebase database, read all your products, orders,
-            and purchase orders, and import them into your new Command Center.
-          </p>
-          <p className="text-sm text-slate-500">
-            Your old data will <strong>not</strong> be modified or deleted.
-          </p>
-          <button
-            onClick={startMigration}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700"
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+            <p className="font-medium text-blue-800 mb-2">How to export from your old app:</p>
+            <ol className="text-sm text-blue-700 space-y-1 list-decimal list-inside">
+              <li>Open your old InventoryPro app in the browser</li>
+              <li>Press <strong>F12</strong> to open Developer Tools</li>
+              <li>Click the <strong>Console</strong> tab</li>
+              <li>
+                <button
+                  onClick={() => setShowScript(true)}
+                  className="text-blue-600 underline font-medium"
+                >
+                  Click here to see the export script
+                </button>
+                , copy it, and paste it into the console
+              </li>
+              <li>Press <strong>Enter</strong> — a JSON file will download</li>
+              <li>Upload that file below</li>
+            </ol>
+          </div>
+
+          {showScript && (
+            <div className="relative">
+              <pre className="bg-slate-900 text-green-400 text-xs p-4 rounded-xl overflow-x-auto max-h-48 overflow-y-auto">
+                {EXPORT_SCRIPT}
+              </pre>
+              <button
+                onClick={() => { navigator.clipboard.writeText(EXPORT_SCRIPT); }}
+                className="absolute top-2 right-2 px-2 py-1 bg-slate-700 text-white text-xs rounded hover:bg-slate-600"
+              >
+                Copy
+              </button>
+            </div>
+          )}
+
+          <div
+            onClick={() => fileRef.current?.click()}
+            className="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/50 transition-colors"
           >
-            <Download className="w-5 h-5" />
-            Import from Firebase
-          </button>
+            <Upload className="w-10 h-10 text-slate-400 mx-auto mb-3" />
+            <p className="font-medium text-slate-700">Upload exported JSON file</p>
+            <p className="text-sm text-slate-500 mt-1">Click to browse or drag and drop</p>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".json"
+              onChange={handleFile}
+              className="hidden"
+            />
+          </div>
         </>
       )}
 
-      {(status === 'signing_in' || status === 'reading' || status === 'writing') && (
-        <div className="text-center py-4">
-          <Loader2 className="w-8 h-8 text-blue-500 animate-spin mx-auto mb-3" />
+      {status === 'processing' && (
+        <div className="text-center py-8">
+          <Loader2 className="w-10 h-10 text-blue-500 animate-spin mx-auto mb-3" />
           <p className="text-sm text-slate-600">{progress}</p>
         </div>
       )}
 
       {status === 'done' && (
-        <div className="text-center py-4">
-          <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
-          <p className="font-semibold text-slate-800 mb-2">Migration Complete!</p>
+        <div className="text-center py-8">
+          <CheckCircle className="w-14 h-14 text-green-500 mx-auto mb-3" />
+          <p className="text-xl font-semibold text-slate-800 mb-3">Import Complete!</p>
           <div className="text-sm text-slate-600 space-y-1">
-            <p>{counts.products} products imported</p>
-            <p>{counts.orders} inventory orders imported</p>
-            <p>{counts.purchaseOrders} purchase orders imported</p>
+            <p><strong>{counts.products}</strong> products imported</p>
+            <p><strong>{counts.orders}</strong> inventory orders imported</p>
+            <p><strong>{counts.purchaseOrders}</strong> purchase orders imported</p>
           </div>
         </div>
       )}
 
       {status === 'error' && (
-        <div className="text-center py-4">
-          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-3" />
-          <p className="font-semibold text-slate-800 mb-2">Migration Failed</p>
+        <div className="text-center py-8">
+          <AlertCircle className="w-14 h-14 text-red-500 mx-auto mb-3" />
+          <p className="font-semibold text-slate-800 mb-2">Import Failed</p>
           <p className="text-sm text-red-600 mb-4">{error}</p>
           <button
             onClick={() => { setStatus('idle'); setError(null); }}
