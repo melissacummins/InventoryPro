@@ -285,7 +285,7 @@ export default function ProductTable({ products, onRefetch, onAdjustStock }: Pro
                               </div>
                               <div>
                                 <p className="text-[11px] text-slate-400 uppercase mb-0.5">Avg Daily Sales</p>
-                                <span>{product.metrics.avgDailySales.toFixed(2)}</span>
+                                <span>{product.metrics.avgDailySales.toFixed(4)}</span>
                               </div>
                               {(product.category === 'Bundle' || product.category === 'Book Box') && (
                                 <div>
