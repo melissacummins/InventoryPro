@@ -1,0 +1,295 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: userId
+    // Fields:
+    //   - email: string
+    //   - role: string (e.g., 'admin')
+    //
+    // Collection: products
+    // Document ID: auto-generated
+    // Fields:
+    //   - name: string
+    //   - sku: string
+    //   - category: string
+    //   - basePrice: number
+    //   - productionCost: number
+    //   - shippingCost: number
+    //   - shippingSuppliesCost: number
+    //   - paCosts: number
+    //   - handlingFeeAddOn: number
+    //   - ttShopPrice: number
+    //   - freeShipping: number
+    //   - bookStock: number
+    //   - booksPurchased: number
+    //   - bundlesPurchased: number
+    //   - purchasedViaBundles: number
+    //   - bookInventory: number
+    //   - bundlesInventory: number
+    //   - sixMonthBookSales: number
+    //   - sixMonthBundleSales: number
+    //   - leadTime: number
+    //   - booksInBundle: string
+    //   - bundles: string
+    //   - csvAvgDaily: number
+    //   - csvReorderThreshold: number
+    //   - createdAt: string (ISO 8601)
+    //   - updatedAt: string (ISO 8601)
+    //
+    // Collection: orders
+    // Document ID: auto-generated
+    // Fields:
+    //   - productId: string
+    //   - type: string
+    //   - inventoryType: string
+    //   - quantity: number
+    //   - previousValue: number
+    //   - newValue: number
+    //   - source: string
+    //   - notes: string
+    //   - createdAt: string (ISO 8601)
+    //
+    // Collection: bookSpecs
+    // Document ID: auto-generated
+    // Fields:
+    //   - productId: string
+    //   - printer: string
+    //   - trimSize: string
+    //   - pageCount: number
+    //   - paperType: string
+    //   - coverType: string
+    //   - binding: string
+    //   - interiorColor: string
+    //   - isbn: string
+    //   - weight: number
+    //   - notes: string
+    //   - createdAt: string (ISO 8601)
+    //   - updatedAt: string (ISO 8601)
+    //
+    // Collection: printerQuotes
+    // Document ID: auto-generated
+    // Fields:
+    //   - productId: string
+    //   - printer: string
+    //   - quantity: number
+    //   - unitCost: number
+    //   - totalCost: number
+    //   - turnaround: string
+    //   - shippingEstimate: number
+    //   - quoteDate: string (ISO 8601)
+    //   - expiresDate: string (ISO 8601)
+    //   - notes: string
+    //   - createdAt: string (ISO 8601)
+    //   - updatedAt: string (ISO 8601)
+    //
+    // Collection: salesRegions
+    // Document ID: auto-generated
+    // Fields:
+    //   - region: string
+    //   - count: number
+    //   - importDate: string (ISO 8601)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
+          (request.auth.token.email == "melissa@melissacummins.com" && request.auth.token.email_verified == true)
+        );
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string &&
+        dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    function isValidOptionalString(field, minLen, maxLen) {
+      return !(field in request.resource.data) ||
+             (request.resource.data[field] is string &&
+              request.resource.data[field].size() >= minLen &&
+              request.resource.data[field].size() <= maxLen);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return data.email is string && data.email.size() > 0 && data.email.size() < 100 &&
+             data.role in ['admin', 'user'];
+    }
+
+    function isValidProduct(data) {
+      return hasRequiredFields(['name', 'sku', 'category', 'basePrice', 'productionCost']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
+             data.sku is string && data.sku.size() > 0 && data.sku.size() < 100 &&
+             data.category in ['Paperback', 'Hardcover', 'Art Pack', 'Bundle', 'Book Box', 'Omnibus'] &&
+             data.basePrice is number && data.basePrice >= 0 &&
+             data.productionCost is number && data.productionCost >= 0 &&
+             (!('shippingCost' in data) || (data.shippingCost is number && data.shippingCost >= 0)) &&
+             (!('shippingSuppliesCost' in data) || (data.shippingSuppliesCost is number && data.shippingSuppliesCost >= 0)) &&
+             (!('paCosts' in data) || (data.paCosts is number && data.paCosts >= 0)) &&
+             (!('handlingFeeAddOn' in data) || (data.handlingFeeAddOn is number && data.handlingFeeAddOn >= 0)) &&
+             (!('ttShopPrice' in data) || (data.ttShopPrice is number && data.ttShopPrice >= 0)) &&
+             (!('freeShipping' in data) || (data.freeShipping is number && data.freeShipping >= 0)) &&
+             (!('bookStock' in data) || (data.bookStock is number && data.bookStock >= 0)) &&
+             (!('booksPurchased' in data) || (data.booksPurchased is number && data.booksPurchased >= 0)) &&
+             (!('bundlesPurchased' in data) || (data.bundlesPurchased is number && data.bundlesPurchased >= 0)) &&
+             (!('purchasedViaBundles' in data) || (data.purchasedViaBundles is number && data.purchasedViaBundles >= 0)) &&
+             (!('bookInventory' in data) || (data.bookInventory is number && data.bookInventory >= 0)) &&
+             (!('bundlesInventory' in data) || (data.bundlesInventory is number && data.bundlesInventory >= 0)) &&
+             (!('sixMonthBookSales' in data) || (data.sixMonthBookSales is number && data.sixMonthBookSales >= 0)) &&
+             (!('sixMonthBundleSales' in data) || (data.sixMonthBundleSales is number && data.sixMonthBundleSales >= 0)) &&
+             (!('leadTime' in data) || (data.leadTime is number && data.leadTime >= 0)) &&
+             isValidOptionalString('booksInBundle', 0, 1000) &&
+             isValidOptionalString('bundles', 0, 1000) &&
+             (!('csvAvgDaily' in data) || (data.csvAvgDaily is number && data.csvAvgDaily >= 0)) &&
+             (!('csvReorderThreshold' in data) || (data.csvReorderThreshold is number && data.csvReorderThreshold >= 0)) &&
+             (!('doNotReorder' in data) || data.doNotReorder is bool) &&
+             (!('createdAt' in data) || isValidDateString(data.createdAt)) &&
+             (!('updatedAt' in data) || isValidDateString(data.updatedAt));
+    }
+
+    function isValidOrder(data) {
+      return hasRequiredFields(['productId', 'type', 'inventoryType', 'quantity', 'previousValue', 'newValue', 'createdAt']) &&
+             data.productId is string && data.productId.size() > 0 && data.productId.size() < 100 &&
+             data.type in ['add', 'subtract', 'csv_import', 'stock_reset'] &&
+             data.inventoryType in ['book', 'bundle'] &&
+             data.quantity is number && data.quantity >= 0 &&
+             data.previousValue is number && data.previousValue >= 0 &&
+             data.newValue is number && data.newValue >= 0 &&
+             isValidOptionalString('source', 0, 200) &&
+             isValidOptionalString('notes', 0, 1000) &&
+             isValidDateString(data.createdAt);
+    }
+
+    function isValidBookSpec(data) {
+      return hasRequiredFields(['productId']) &&
+             data.productId is string && data.productId.size() > 0 && data.productId.size() < 100 &&
+             isValidOptionalString('printer', 0, 100) &&
+             isValidOptionalString('trimSize', 0, 100) &&
+             (!('pageCount' in data) || (data.pageCount is number && data.pageCount >= 0)) &&
+             isValidOptionalString('paperType', 0, 100) &&
+             isValidOptionalString('coverType', 0, 100) &&
+             isValidOptionalString('binding', 0, 100) &&
+             isValidOptionalString('interiorColor', 0, 100) &&
+             isValidOptionalString('isbn', 0, 100) &&
+             (!('weight' in data) || (data.weight is number && data.weight >= 0)) &&
+             isValidOptionalString('notes', 0, 1000) &&
+             (!('createdAt' in data) || isValidDateString(data.createdAt)) &&
+             (!('updatedAt' in data) || isValidDateString(data.updatedAt));
+    }
+
+    function isValidPrinterQuote(data) {
+      return hasRequiredFields(['productId', 'printer', 'quantity', 'unitCost', 'totalCost']) &&
+             data.productId is string && data.productId.size() > 0 && data.productId.size() < 100 &&
+             data.printer is string && data.printer.size() > 0 && data.printer.size() < 100 &&
+             data.quantity is number && data.quantity >= 0 &&
+             data.unitCost is number && data.unitCost >= 0 &&
+             data.totalCost is number && data.totalCost >= 0 &&
+             isValidOptionalString('turnaround', 0, 100) &&
+             (!('shippingEstimate' in data) || (data.shippingEstimate is number && data.shippingEstimate >= 0)) &&
+             (!('quoteDate' in data) || isValidDateString(data.quoteDate)) &&
+             (!('expiresDate' in data) || isValidDateString(data.expiresDate)) &&
+             isValidOptionalString('notes', 0, 1000) &&
+             (!('createdAt' in data) || isValidDateString(data.createdAt)) &&
+             (!('updatedAt' in data) || isValidDateString(data.updatedAt));
+    }
+
+    function isValidSalesRegion(data) {
+      return hasRequiredFields(['region', 'count', 'importDate']) &&
+             data.region is string && data.region.size() > 0 && data.region.size() < 200 &&
+             data.count is number && data.count >= 0 &&
+             isValidDateString(data.importDate);
+    }
+
+    function isValidPurchaseOrder(data) {
+      return hasRequiredFields(['productId', 'productName', 'quantity', 'orderDate', 'expectedDispatch', 'expectedArrival', 'status', 'createdAt']) &&
+             data.productId is string && data.productId.size() > 0 && data.productId.size() < 100 &&
+             data.productName is string && data.productName.size() > 0 && data.productName.size() < 200 &&
+             data.quantity is number && data.quantity >= 0 &&
+             data.orderDate is string &&
+             data.expectedDispatch is string &&
+             data.expectedArrival is string &&
+             (!('actualArrival' in data) || data.actualArrival is string) &&
+             data.status in ['pending', 'arrived'] &&
+             isValidDateString(data.createdAt);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && ((isOwner(userId) && request.resource.data.role == 'user') || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && ((isOwner(userId) && request.resource.data.role == resource.data.role) || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /products/{productId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && isValidProduct(request.resource.data);
+      allow update: if isAdmin() && isValidProduct(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /orders/{orderId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && isValidOrder(request.resource.data);
+      allow update: if isAdmin() && isValidOrder(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /bookSpecs/{specId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && isValidBookSpec(request.resource.data);
+      allow update: if isAdmin() && isValidBookSpec(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /printerQuotes/{quoteId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && isValidPrinterQuote(request.resource.data);
+      allow update: if isAdmin() && isValidPrinterQuote(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /salesRegions/{regionId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && isValidSalesRegion(request.resource.data);
+      allow update: if isAdmin() && isValidSalesRegion(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /purchaseOrders/{orderId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && isValidPurchaseOrder(request.resource.data);
+      allow update: if isAdmin() && isValidPurchaseOrder(request.resource.data);
+      allow delete: if isAdmin();
+    }
+  }
+}

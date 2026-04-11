@@ -1,0 +1,115 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "A product in the inventory system",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "sku": { "type": "string" },
+        "category": { "type": "string", "enum": ["Paperback", "Hardcover", "Art Pack", "Bundle", "Book Box", "Omnibus"] },
+        "basePrice": { "type": "number" },
+        "productionCost": { "type": "number" },
+        "shippingCost": { "type": "number" },
+        "shippingSuppliesCost": { "type": "number" },
+        "paCosts": { "type": "number" },
+        "handlingFeeAddOn": { "type": "number" },
+        "ttShopPrice": { "type": "number" },
+        "freeShipping": { "type": "number" },
+        "bookStock": { "type": "number" },
+        "booksPurchased": { "type": "number" },
+        "bundlesPurchased": { "type": "number" },
+        "purchasedViaBundles": { "type": "number" },
+        "bookInventory": { "type": "number" },
+        "bundlesInventory": { "type": "number" },
+        "sixMonthBookSales": { "type": "number" },
+        "sixMonthBundleSales": { "type": "number" },
+        "leadTime": { "type": "number" },
+        "booksInBundle": { "type": "string" },
+        "bundles": { "type": "string" },
+        "csvAvgDaily": { "type": "number" },
+        "csvReorderThreshold": { "type": "number" },
+        "doNotReorder": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "sku", "category", "basePrice", "productionCost"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "An inventory change log entry",
+      "type": "object",
+      "properties": {
+        "productId": { "type": "string" },
+        "type": { "type": "string", "enum": ["add", "subtract", "csv_import", "stock_reset"] },
+        "inventoryType": { "type": "string", "enum": ["book", "bundle"] },
+        "quantity": { "type": "number" },
+        "previousValue": { "type": "number" },
+        "newValue": { "type": "number" },
+        "source": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["productId", "type", "inventoryType", "quantity", "previousValue", "newValue", "createdAt"]
+    },
+    "BookSpec": {
+      "title": "Book Specification",
+      "description": "Physical specifications for a book product",
+      "type": "object",
+      "properties": {
+        "productId": { "type": "string" },
+        "printer": { "type": "string" },
+        "trimSize": { "type": "string" },
+        "pageCount": { "type": "number" },
+        "paperType": { "type": "string" },
+        "coverType": { "type": "string" },
+        "binding": { "type": "string" },
+        "interiorColor": { "type": "string" },
+        "isbn": { "type": "string" },
+        "weight": { "type": "number" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["productId"]
+    },
+    "PrinterQuote": {
+      "title": "Printer Quote",
+      "description": "A quote from a printer for a specific product",
+      "type": "object",
+      "properties": {
+        "productId": { "type": "string" },
+        "printer": { "type": "string" },
+        "quantity": { "type": "number" },
+        "unitCost": { "type": "number" },
+        "totalCost": { "type": "number" },
+        "turnaround": { "type": "string" },
+        "shippingEstimate": { "type": "number" },
+        "quoteDate": { "type": "string", "format": "date-time" },
+        "expiresDate": { "type": "string", "format": "date-time" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["productId", "printer", "quantity", "unitCost", "totalCost"]
+    }
+  },
+  "firestore": {
+    "/products/{productId}": {
+      "schema": { "$ref": "#/entities/Product" },
+      "description": "Stores all inventory products"
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "Stores all inventory change logs"
+    },
+    "/bookSpecs/{specId}": {
+      "schema": { "$ref": "#/entities/BookSpec" },
+      "description": "Stores physical specifications for books"
+    },
+    "/printerQuotes/{quoteId}": {
+      "schema": { "$ref": "#/entities/PrinterQuote" },
+      "description": "Stores printer quotes for products"
+    }
+  }
+}
