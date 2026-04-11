@@ -34,36 +34,93 @@ function mapProduct(d: any) {
 }
 
 const EXPORT_SCRIPT = `// Run this in your old InventoryPro app's browser console (F12 > Console)
-// It will download a JSON file with all your data.
+// Make sure you are SIGNED IN to the old app first!
 
 (async () => {
-  const { getFirestore, collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
-  const app = window.__FIREBASE_APP__ || (await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js')).getApps()[0];
-
-  // Try to get the Firestore instance that's already initialized
-  const db = getFirestore(app);
-
-  const collections = ['products', 'orders', 'purchaseOrders', 'bookSpecs', 'printerQuotes'];
-  const data = {};
-
-  for (const col of collections) {
-    try {
-      const snap = await getDocs(collection(db, col));
-      data[col] = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      console.log(col + ': ' + data[col].length + ' docs');
-    } catch(e) {
-      console.log('Skipping ' + col + ': ' + e.message);
-      data[col] = [];
-    }
+  // Read your Firebase auth token from IndexedDB
+  function openDB(name) {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(name);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  function readAll(db, storeName) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, 'readonly');
+      const store = tx.objectStore(storeName);
+      const req = store.getAll();
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
   }
 
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
+  let token;
+  try {
+    const idb = await openDB('firebaseLocalStorageDb');
+    const entries = await readAll(idb, 'firebaseLocalStorage');
+    const authEntry = entries.find(e => e && e.value && e.value.stsTokenManager && e.value.stsTokenManager.accessToken);
+    if (!authEntry) throw new Error('No auth');
+    token = authEntry.value.stsTokenManager.accessToken;
+    console.log('Auth token found!');
+  } catch(e) {
+    console.error('Could not get auth token. Make sure you are signed in to the old app.');
+    return;
+  }
+
+  // Fetch from Firestore REST API (no SDK needed)
+  const PROJECT = 'gen-lang-client-0972859592';
+  const DB = 'ai-studio-20426c88-9892-49be-be11-1ee14c9086a1';
+  const BASE = 'https://firestore.googleapis.com/v1/projects/' + PROJECT + '/databases/' + DB + '/documents';
+
+  function parseValue(v) {
+    if (v.stringValue !== undefined) return v.stringValue;
+    if (v.integerValue !== undefined) return Number(v.integerValue);
+    if (v.doubleValue !== undefined) return v.doubleValue;
+    if (v.booleanValue !== undefined) return v.booleanValue;
+    if (v.nullValue !== undefined) return null;
+    if (v.timestampValue !== undefined) return v.timestampValue;
+    if (v.arrayValue) return (v.arrayValue.values || []).map(parseValue);
+    if (v.mapValue) {
+      var obj = {};
+      for (var k of Object.keys(v.mapValue.fields || {})) obj[k] = parseValue(v.mapValue.fields[k]);
+      return obj;
+    }
+    return null;
+  }
+
+  async function fetchCol(name) {
+    var docs = [], pageToken = '';
+    do {
+      var url = BASE + '/' + name + '?pageSize=300' + (pageToken ? '&pageToken=' + pageToken : '');
+      var resp = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+      if (!resp.ok) { console.error(name, resp.status, await resp.text()); break; }
+      var data = await resp.json();
+      for (var doc of (data.documents || [])) {
+        var parsed = { id: doc.name.split('/').pop() };
+        for (var key of Object.keys(doc.fields || {})) parsed[key] = parseValue(doc.fields[key]);
+        docs.push(parsed);
+      }
+      pageToken = data.nextPageToken || '';
+    } while (pageToken);
+    return docs;
+  }
+
+  console.log('Exporting data...');
+  var result = {};
+  for (var col of ['products', 'orders', 'purchaseOrders', 'bookSpecs', 'printerQuotes']) {
+    result[col] = await fetchCol(col);
+    console.log(col + ': ' + result[col].length + ' docs');
+  }
+
+  var blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
   a.download = 'inventorypro-export.json';
+  document.body.appendChild(a);
   a.click();
-  console.log('Download started!');
+  a.remove();
+  console.log('Done! File downloading.');
 })();`;
 
 export default function MigrationTool({ onComplete }: { onComplete: () => void }) {
