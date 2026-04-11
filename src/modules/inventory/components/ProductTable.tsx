@@ -227,39 +227,39 @@ export default function ProductTable({ products, onRefetch, onAdjustStock }: Pro
                           {/* INVENTORY & SALES */}
                           <div className="bg-white rounded-xl border border-slate-200 p-4">
                             <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Inventory & Sales</h4>
-                            <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-                              <div className="flex justify-between">
-                                <span className="text-slate-500">Book Stock</span>
+                            <div className="grid grid-cols-3 gap-4 text-sm">
+                              <div>
+                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">Book Stock</p>
                                 <EditableCell id={product.id} field="book_stock" value={product.book_stock} />
                               </div>
-                              <div className="flex justify-between">
-                                <span className="text-slate-500">Books Purchased</span>
-                                <EditableCell id={product.id} field="books_purchased" value={product.books_purchased} />
+                              <div>
+                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">Books Purchased</p>
+                                <ReadOnlyCell value={product.books_purchased} />
                               </div>
-                              <div className="flex justify-between">
-                                <span className="text-slate-500">Purchased via Bundles</span>
-                                <EditableCell id={product.id} field="purchased_via_bundles" value={product.purchased_via_bundles} />
+                              <div>
+                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">Purchased via Bundles</p>
+                                <ReadOnlyCell value={product.purchased_via_bundles} />
                               </div>
-                              <div className="flex justify-between">
-                                <span className="text-slate-500">Book Inventory</span>
-                                <ReadOnlyCell value={product.metrics.bookInventory} className="font-medium" />
+                              <div>
+                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">Book Inventory</p>
+                                <span className="font-semibold">{product.metrics.bookInventory}</span>
                               </div>
-                              <div className="flex justify-between">
-                                <span className="text-slate-500">6Mo Book Sales</span>
+                              <div>
+                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">6Mo Book Sales</p>
                                 <EditableCell id={product.id} field="six_month_book_sales" value={product.six_month_book_sales} />
                               </div>
-                              <div className="flex justify-between">
-                                <span className="text-slate-500">6Mo Bundle Sales</span>
+                              <div>
+                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">6Mo Bundle Sales</p>
                                 <EditableCell id={product.id} field="six_month_bundle_sales" value={product.six_month_bundle_sales} />
                               </div>
-                              <div className="flex justify-between">
-                                <span className="text-slate-500">Avg Daily Sales</span>
-                                <ReadOnlyCell value={product.metrics.avgDailySalesBooks.toFixed(2)} className="text-slate-700" />
+                              <div>
+                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">Avg Daily Sales</p>
+                                <span>{product.metrics.avgDailySalesBooks.toFixed(2)}</span>
                               </div>
                               {(product.category === 'Bundle' || product.category === 'Book Box') && (
-                                <div className="flex justify-between">
-                                  <span className="text-slate-500">Bundles Inventory</span>
-                                  <ReadOnlyCell value={product.metrics.bundlesInventory} className="font-medium" />
+                                <div>
+                                  <p className="text-[11px] text-slate-400 uppercase mb-0.5">Bundles Inventory</p>
+                                  <span className="font-semibold">{product.metrics.bundlesInventory}</span>
                                 </div>
                               )}
                             </div>
@@ -268,42 +268,42 @@ export default function ProductTable({ products, onRefetch, onAdjustStock }: Pro
                           {/* PRICING & MARGINS */}
                           <div className="bg-white rounded-xl border border-slate-200 p-4">
                             <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Pricing & Margins</h4>
-                            <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-                              <div className="flex justify-between">
-                                <span className="text-slate-500">Base Price</span>
+                            <div className="grid grid-cols-4 gap-4 text-sm">
+                              <div>
+                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">Base Price</p>
                                 <EditableCell id={product.id} field="base_price" value={product.base_price} format={formatCurrency} />
                               </div>
-                              <div className="flex justify-between">
-                                <span className="text-slate-500">Production Cost</span>
+                              <div>
+                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">Production Cost</p>
                                 <EditableCell id={product.id} field="production_cost" value={product.production_cost} format={formatCurrency} />
                               </div>
-                              <div className="flex justify-between">
-                                <span className="text-slate-500">Shipping Cost</span>
+                              <div>
+                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">Shipping Cost</p>
                                 <EditableCell id={product.id} field="shipping_cost" value={product.shipping_cost} format={formatCurrency} />
                               </div>
-                              <div className="flex justify-between">
-                                <span className="text-slate-500">Shipping Supplies</span>
+                              <div>
+                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">Shipping Supplies</p>
                                 <EditableCell id={product.id} field="shipping_supplies_cost" value={product.shipping_supplies_cost} format={formatCurrency} />
                               </div>
-                              <div className="flex justify-between">
-                                <span className="text-slate-500">PA Costs</span>
+                              <div>
+                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">PA Costs</p>
                                 <EditableCell id={product.id} field="pa_costs" value={product.pa_costs} format={formatCurrency} />
                               </div>
-                              <div className="flex justify-between">
-                                <span className="text-slate-500">Handling Fee</span>
+                              <div>
+                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">Handling Fee</p>
                                 <EditableCell id={product.id} field="handling_fee_add_on" value={product.handling_fee_add_on} format={formatCurrency} />
                               </div>
-                              <div className="flex justify-between">
-                                <span className="text-slate-500">Transaction Fees</span>
-                                <ReadOnlyCell value={product.metrics.transactionFees} format={formatCurrency} className="text-slate-700" />
+                              <div>
+                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">Transaction Fees</p>
+                                <span>{formatCurrency(product.metrics.transactionFees)}</span>
                               </div>
-                              <div className="flex justify-between">
-                                <span className="text-slate-500">Net Margin ($)</span>
-                                <ReadOnlyCell value={product.metrics.netMargin} format={formatCurrency} className={`font-medium ${marginColor(product.metrics.netMarginPercent)}`} />
+                              <div>
+                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">Net Margin ($)</p>
+                                <span className={`font-medium ${marginColor(product.metrics.netMarginPercent)}`}>{formatCurrency(product.metrics.netMargin)}</span>
                               </div>
-                              <div className="flex justify-between col-span-2">
-                                <span className="text-slate-500">Net Margin (%)</span>
-                                <ReadOnlyCell value={`${product.metrics.netMarginPercent.toFixed(1)}%`} className={`font-semibold ${marginColor(product.metrics.netMarginPercent)}`} />
+                              <div className="col-span-4">
+                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">Net Margin (%)</p>
+                                <span className={`text-lg font-semibold ${marginColor(product.metrics.netMarginPercent)}`}>{product.metrics.netMarginPercent.toFixed(1)}%</span>
                               </div>
                             </div>
                           </div>
@@ -311,27 +311,28 @@ export default function ProductTable({ products, onRefetch, onAdjustStock }: Pro
                           {/* REORDER METRICS */}
                           <div className="bg-white rounded-xl border border-slate-200 p-4">
                             <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Reorder Metrics</h4>
-                            <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-                              <div className="flex justify-between">
-                                <span className="text-slate-500">Lead Time (days)</span>
+                            <div className="grid grid-cols-3 gap-4 text-sm">
+                              <div>
+                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">Lead Time (days)</p>
                                 <EditableCell id={product.id} field="lead_time" value={product.lead_time} />
                               </div>
-                              <div className="flex justify-between">
-                                <span className="text-slate-500">Safety Threshold</span>
-                                <ReadOnlyCell value={product.metrics.reorderThreshold} />
+                              <div>
+                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">Safety Threshold</p>
+                                <span>{product.metrics.reorderThreshold}</span>
                               </div>
-                              <div className="flex justify-between">
-                                <span className="text-slate-500">Days Remaining</span>
-                                <ReadOnlyCell value={product.metrics.daysRemaining === Infinity ? 'N/A' : product.metrics.daysRemaining}
-                                  className={product.metrics.daysRemaining !== Infinity && product.metrics.daysRemaining <= product.lead_time ? 'text-red-600 font-medium' : ''} />
+                              <div>
+                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">Days Remaining</p>
+                                <span className={product.metrics.daysRemaining !== Infinity && product.metrics.daysRemaining <= product.lead_time ? 'text-red-600 font-medium' : ''}>
+                                  {product.metrics.daysRemaining === Infinity ? 'N/A' : product.metrics.daysRemaining}
+                                </span>
                               </div>
-                              <div className="flex justify-between">
-                                <span className="text-slate-500">Reorder Qty</span>
-                                <ReadOnlyCell value={product.metrics.reorderQty} />
+                              <div>
+                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">Reorder Qty</p>
+                                <span>{product.metrics.reorderQty}</span>
                               </div>
-                              <div className="flex justify-between col-span-2">
-                                <span className="text-slate-500">Reorder Cost</span>
-                                <ReadOnlyCell value={product.metrics.reorderCost} format={formatCurrency} />
+                              <div>
+                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">Reorder Cost</p>
+                                <span>{formatCurrency(product.metrics.reorderCost)}</span>
                               </div>
                             </div>
                           </div>
@@ -339,26 +340,26 @@ export default function ProductTable({ products, onRefetch, onAdjustStock }: Pro
                           {/* TIKTOK SHOP */}
                           <div className="bg-white rounded-xl border border-slate-200 p-4">
                             <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">TikTok Shop</h4>
-                            <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-                              <div className="flex justify-between">
-                                <span className="text-slate-500">TikTok Price</span>
+                            <div className="grid grid-cols-3 gap-4 text-sm">
+                              <div>
+                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">TikTok Price</p>
                                 <EditableCell id={product.id} field="tt_shop_price" value={product.tt_shop_price} format={formatCurrency} />
                               </div>
-                              <div className="flex justify-between">
-                                <span className="text-slate-500">TikTok Fees</span>
-                                <ReadOnlyCell value={product.metrics.ttFees} format={formatCurrency} className="text-slate-700" />
+                              <div>
+                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">TikTok Fees</p>
+                                <span>{formatCurrency(product.metrics.ttFees)}</span>
                               </div>
-                              <div className="flex justify-between">
-                                <span className="text-slate-500">Free Shipping</span>
+                              <div>
+                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">Free Shipping</p>
                                 <EditableCell id={product.id} field="free_shipping" value={product.free_shipping} format={formatCurrency} />
                               </div>
-                              <div className="flex justify-between">
-                                <span className="text-slate-500">TikTok Margin ($)</span>
-                                <ReadOnlyCell value={product.metrics.ttNetMargin} format={formatCurrency} className={`font-medium ${marginColor(product.metrics.ttNetMarginPercent)}`} />
+                              <div>
+                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">TikTok Margin ($)</p>
+                                <span className={`font-medium ${marginColor(product.metrics.ttNetMarginPercent)}`}>{formatCurrency(product.metrics.ttNetMargin)}</span>
                               </div>
-                              <div className="flex justify-between col-span-2">
-                                <span className="text-slate-500">TikTok Margin (%)</span>
-                                <ReadOnlyCell value={`${product.metrics.ttNetMarginPercent.toFixed(1)}%`} className={`font-semibold ${marginColor(product.metrics.ttNetMarginPercent)}`} />
+                              <div className="col-span-2">
+                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">TikTok Margin (%)</p>
+                                <span className={`text-lg font-semibold ${marginColor(product.metrics.ttNetMarginPercent)}`}>{product.metrics.ttNetMarginPercent.toFixed(1)}%</span>
                               </div>
                             </div>
                           </div>

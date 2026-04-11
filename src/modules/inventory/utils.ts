@@ -71,6 +71,8 @@ export function calculateProductMetrics(product: Product, allProducts?: Product[
     status = 'TRACKING ONLY';
   } else if (bookInventory <= 0) {
     status = 'OUT OF STOCK';
+  } else if (bookInventory <= reorderThreshold && reorderThreshold > 0) {
+    status = 'REORDER NOW';
   } else if (daysRemaining !== Infinity && daysRemaining <= product.lead_time) {
     status = 'REORDER NOW';
   } else {
@@ -93,7 +95,9 @@ export function calculateProductMetrics(product: Product, allProducts?: Product[
   let action: string;
   if (product.category === 'Bundle' || product.category === 'Book Box') {
     action = 'BUNDLE';
-  } else if (status === 'REORDER NOW' || status === 'OUT OF STOCK') {
+  } else if (status === 'OUT OF STOCK') {
+    action = 'REORDER NOW';
+  } else if (status === 'REORDER NOW') {
     action = 'ORDER THIS WEEK';
   } else {
     action = 'NO ACTION NEEDED';
