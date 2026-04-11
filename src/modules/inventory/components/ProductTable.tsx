@@ -116,16 +116,47 @@ export default function ProductTable({ products, onRefetch, onAdjustStock }: Pro
     return <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${colors[status] || 'bg-slate-100'}`}>{status}</span>;
   }
 
-  // Find which bundles a product belongs to (reverse lookup)
-  function getBundlesContaining(productName: string): string[] {
-    return products
-      .filter(p => (p.category === 'Bundle' || p.category === 'Book Box') && p.books_in_bundle)
-      .filter(p => p.books_in_bundle.toLowerCase().split(',').some(name =>
-        name.trim().toLowerCase() === productName.toLowerCase() ||
-        productName.toLowerCase().includes(name.trim().toLowerCase()) ||
-        name.trim().toLowerCase().includes(productName.toLowerCase())
-      ))
-      .map(p => p.name);
+  // All bundle/book box products for the "Part of Bundles" checkboxes
+  const allBundles = products.filter(p => p.category === 'Bundle' || p.category === 'Book Box');
+
+  // Get which bundles a product belongs to from its `bundles` field
+  function getProductBundles(product: typeof enriched[0]): string[] {
+    if (!product.bundles) return [];
+    return product.bundles.split(',').map(b => b.trim()).filter(Boolean);
+  }
+
+  // Toggle a bundle membership for a product
+  async function toggleBundle(product: typeof enriched[0], bundleName: string, isCurrentlyIn: boolean) {
+    try {
+      // Update the product's `bundles` field
+      const currentBundles = getProductBundles(product);
+      let newBundles: string[];
+      if (isCurrentlyIn) {
+        newBundles = currentBundles.filter(b => b !== bundleName);
+      } else {
+        newBundles = [...currentBundles, bundleName];
+      }
+      await updateProduct(product.id, { bundles: newBundles.join(', ') });
+
+      // Update the bundle's `books_in_bundle` field
+      const bundle = allBundles.find(b => b.name === bundleName);
+      if (bundle) {
+        const currentBooks = bundle.books_in_bundle
+          ? bundle.books_in_bundle.split(',').map(b => b.trim()).filter(Boolean)
+          : [];
+        let newBooks: string[];
+        if (isCurrentlyIn) {
+          newBooks = currentBooks.filter(b => b !== product.name);
+        } else {
+          newBooks = [...currentBooks, product.name];
+        }
+        await updateProduct(bundle.id, { books_in_bundle: newBooks.join(', ') });
+      }
+
+      onRefetch();
+    } catch (err) {
+      console.error('Failed to toggle bundle:', err);
+    }
   }
 
   return (
@@ -177,7 +208,7 @@ export default function ProductTable({ products, onRefetch, onAdjustStock }: Pro
             </thead>
             <tbody>
               {filtered.map(product => {
-                const partOfBundles = getBundlesContaining(product.name);
+                const memberBundles = getProductBundles(product);
                 return (
                 <>
                   <tr key={product.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
@@ -375,19 +406,32 @@ export default function ProductTable({ products, onRefetch, onAdjustStock }: Pro
                           </div>
                         )}
 
-                        {/* Part of Bundles */}
-                        {partOfBundles.length > 0 && (
+                        {/* Part of Bundles — only show for non-bundle products */}
+                        {product.category !== 'Bundle' && product.category !== 'Book Box' && allBundles.length > 0 && (
                           <div className="mt-4 bg-white rounded-xl border border-slate-200 p-4">
                             <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Part of Bundles</h4>
                             <div className="flex flex-wrap gap-2">
-                              {partOfBundles.map(name => (
-                                <span key={name} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700 font-medium">
-                                  <span className="w-3 h-3 bg-green-500 rounded-sm flex items-center justify-center">
-                                    <Check className="w-2 h-2 text-white" />
-                                  </span>
-                                  {name}
-                                </span>
-                              ))}
+                              {allBundles.map(bundle => {
+                                const isIn = memberBundles.includes(bundle.name);
+                                return (
+                                  <label
+                                    key={bundle.id}
+                                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                                      isIn
+                                        ? 'bg-green-50 border border-green-200 text-green-700'
+                                        : 'bg-slate-50 border border-slate-200 text-slate-500 hover:bg-slate-100'
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isIn}
+                                      onChange={() => toggleBundle(product, bundle.name, isIn)}
+                                      className="rounded text-green-600 w-3 h-3"
+                                    />
+                                    {bundle.name}
+                                  </label>
+                                );
+                              })}
                             </div>
                           </div>
                         )}
