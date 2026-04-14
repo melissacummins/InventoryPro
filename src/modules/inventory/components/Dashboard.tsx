@@ -16,7 +16,10 @@ export default function Dashboard({ products, onAddProduct, onAdjustStock }: Das
   const enriched = products.map(p => ({ ...p, metrics: calculateProductMetrics(p, products) }));
 
   const totalProducts = products.length;
-  const totalInventory = enriched.reduce((sum, p) => sum + p.metrics.bookInventory, 0);
+  const totalInventory = enriched.reduce((sum, p) => {
+    const inv = (p.category === 'Bundle' || p.category === 'Book Box') ? p.metrics.bundlesInventory : p.metrics.bookInventory;
+    return sum + inv;
+  }, 0);
   const needReorder = enriched.filter(p => p.metrics.status === 'REORDER NOW' || p.metrics.status === 'OUT OF STOCK').length;
   const avgMargin = products.length > 0
     ? enriched.reduce((sum, p) => sum + p.metrics.netMarginPercent, 0) / products.length

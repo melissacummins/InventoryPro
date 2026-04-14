@@ -38,7 +38,12 @@ export default function ProductTable({ products, onRefetch, onAdjustStock }: Pro
       case 'category': cmp = a.category.localeCompare(b.category); break;
       case 'base_price': cmp = a.base_price - b.base_price; break;
       case 'netMarginPercent': cmp = a.metrics.netMarginPercent - b.metrics.netMarginPercent; break;
-      case 'book_inventory': cmp = a.metrics.bookInventory - b.metrics.bookInventory; break;
+      case 'book_inventory': {
+        const aInv = (a.category === 'Bundle' || a.category === 'Book Box') ? a.metrics.bundlesInventory : a.metrics.bookInventory;
+        const bInv = (b.category === 'Bundle' || b.category === 'Book Box') ? b.metrics.bundlesInventory : b.metrics.bookInventory;
+        cmp = aInv - bInv;
+        break;
+      }
       case 'status': cmp = a.metrics.status.localeCompare(b.metrics.status); break;
     }
     return sortAsc ? cmp : -cmp;
@@ -226,7 +231,11 @@ export default function ProductTable({ products, onRefetch, onAdjustStock }: Pro
                     <td className="px-3 py-3 text-center">
                       <span className={marginColor(product.metrics.netMarginPercent)}>{formatPercent(product.metrics.netMarginPercent)}</span>
                     </td>
-                    <td className="px-3 py-3 text-center font-medium">{product.metrics.bookInventory}</td>
+                    <td className="px-3 py-3 text-center font-medium">
+                      {(product.category === 'Bundle' || product.category === 'Book Box')
+                        ? product.metrics.bundlesInventory
+                        : product.metrics.bookInventory}
+                    </td>
                     <td className="px-3 py-3"><StatusBadge status={product.metrics.status} /></td>
                     <td className="px-3 py-3 text-xs text-slate-500">{product.metrics.action}</td>
                     <td className="px-3 py-3">
