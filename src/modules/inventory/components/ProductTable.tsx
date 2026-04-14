@@ -71,17 +71,40 @@ export default function ProductTable({ products, onRefetch, onAdjustStock }: Pro
       // When editing 6mo bundle sales on a bundle, propagate to all component books
       if (field === 'six_month_bundle_sales') {
         const bundle = products.find(p => p.id === id);
-        if (bundle && (bundle.category === 'Bundle' || bundle.category === 'Book Box') && bundle.books_in_bundle) {
-          const componentNames = bundle.books_in_bundle.split(',').map(n => n.trim().toLowerCase()).filter(Boolean);
-          for (const name of componentNames) {
-            const book = products.find(p =>
-              p.name.toLowerCase() === name ||
-              p.name.toLowerCase().startsWith(name) ||
-              name.startsWith(p.name.toLowerCase())
-            );
-            if (book && book.category !== 'Bundle' && book.category !== 'Book Box') {
-              await updateProduct(book.id, { six_month_bundle_sales: Number(value) });
+        if (bundle && (bundle.category === 'Bundle' || bundle.category === 'Book Box')) {
+          const bundleName = bundle.name;
+
+          // Find all books that list this bundle in their `bundles` field
+          const componentBooks = products.filter(p => {
+            if (p.category === 'Bundle' || p.category === 'Book Box') return false;
+            if (!p.bundles) return false;
+            return p.bundles.split(',').some(b => b.trim() === bundleName);
+          });
+
+          // Also check books_in_bundle as a fallback
+          if (componentBooks.length === 0 && bundle.books_in_bundle) {
+            const names = bundle.books_in_bundle.split(',').map(n => n.trim().toLowerCase()).filter(Boolean);
+            for (const name of names) {
+              const book = products.find(p =>
+                p.category !== 'Bundle' && p.category !== 'Book Box' &&
+                (p.name.toLowerCase() === name || p.name.toLowerCase().startsWith(name) || name.startsWith(p.name.toLowerCase()))
+              );
+              if (book) componentBooks.push(book);
             }
+          }
+
+          // Calculate total bundle sales for each book across ALL bundles it belongs to
+          for (const book of componentBooks) {
+            const bookBundleNames = book.bundles ? book.bundles.split(',').map(b => b.trim()).filter(Boolean) : [];
+            let totalBundleSales = 0;
+            for (const bn of bookBundleNames) {
+              const b = products.find(p => p.name === bn);
+              if (b) {
+                // Use the new value for the bundle being edited, existing value for others
+                totalBundleSales += (b.id === id) ? Number(value) : b.six_month_bundle_sales;
+              }
+            }
+            await updateProduct(book.id, { six_month_bundle_sales: totalBundleSales });
           }
         }
       }
