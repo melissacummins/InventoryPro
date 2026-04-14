@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
   Package, BarChart3, BookOpen, DollarSign,
-  Sparkles, Wallet, Search, ArrowRight
+  Sparkles, Wallet, Search, ArrowRight, Megaphone
 } from 'lucide-react';
 
 const modules = [
@@ -45,6 +45,14 @@ const modules = [
     icon: Sparkles,
     gradient: 'from-orange-500 to-orange-600',
     shadow: 'shadow-orange-500/25',
+  },
+  {
+    name: 'Marketing',
+    description: 'Create ad copy, manage creatives, build reel scripts, and adapt content for social media.',
+    path: '/marketing',
+    icon: Megaphone,
+    gradient: 'from-pink-500 to-pink-600',
+    shadow: 'shadow-pink-500/25',
   },
   {
     name: 'FinStream',

@@ -8,6 +8,7 @@ import CrossSellModule from './modules/cross-sell/CrossSellModule';
 import BookTrackerModule from './modules/book-tracker/BookTrackerModule';
 import ProfitTrackModule from './modules/profit-track/ProfitTrackModule';
 import AdAlchemyModule from './modules/ad-alchemy/AdAlchemyModule';
+import MarketingModule from './modules/marketing/MarketingModule';
 import FinStreamModule from './modules/finstream/FinStreamModule';
 import KDPOptimizerModule from './modules/kdp-optimizer/KDPOptimizerModule';
 
@@ -38,6 +39,7 @@ function ProtectedRoutes() {
         <Route path="book-tracker" element={<BookTrackerModule />} />
         <Route path="profit-track" element={<ProfitTrackModule />} />
         <Route path="ad-alchemy" element={<AdAlchemyModule />} />
+        <Route path="marketing" element={<MarketingModule />} />
         <Route path="finstream" element={<FinStreamModule />} />
         <Route path="kdp-optimizer" element={<KDPOptimizerModule />} />
         <Route path="*" element={<Navigate to="/" replace />} />

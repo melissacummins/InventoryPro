@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
   LogOut, BookOpen, Package, BarChart3, DollarSign,
-  Sparkles, Wallet, Search, Home, Menu, X, ChevronRight, PanelLeftClose, PanelLeftOpen
+  Sparkles, Wallet, Search, Home, Menu, X, ChevronRight, PanelLeftClose, PanelLeftOpen, Megaphone
 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 
@@ -13,6 +13,7 @@ const modules = [
   { name: 'Book Tracker', path: '/book-tracker', icon: BookOpen, color: 'text-purple-400' },
   { name: 'Profit Track', path: '/profit-track', icon: DollarSign, color: 'text-green-400' },
   { name: 'Ad Alchemy', path: '/ad-alchemy', icon: Sparkles, color: 'text-orange-400' },
+  { name: 'Marketing', path: '/marketing', icon: Megaphone, color: 'text-pink-400' },
   { name: 'FinStream', path: '/finstream', icon: Wallet, color: 'text-cyan-400' },
   { name: 'KDP Optimizer', path: '/kdp-optimizer', icon: Search, color: 'text-rose-400' },
 ];

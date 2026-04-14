@@ -400,6 +400,156 @@ export interface KdpKeyword {
 }
 
 // ============================================
+// MARKETING MODULE — ADS
+// ============================================
+export interface BookAnalysis {
+  id: string;
+  user_id: string;
+  book_title: string;
+  series: string | null;
+  subgenre: string;
+  themes: string[];
+  tropes: string[];
+  character_dynamics: string[];
+  key_scenes: string[];
+  tone_keywords: string[];
+  heat_level: string | null;
+  comp_authors: CompAuthor[];
+  reader_avatars: ReaderAvatar[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CompAuthor {
+  name: string;
+  relevance: string;
+  source: string | null;
+}
+
+export interface ReaderAvatar {
+  id: string;
+  name: string;
+  description: string;
+  desires: string[];
+  tropes_searched: string[];
+  framework: string;
+}
+
+export type CreativeType = 'image' | 'video' | 'slideshow';
+export type CreativeSource = 'upload' | 'dropbox' | 'generated';
+
+export interface AdCreative {
+  id: string;
+  user_id: string;
+  book_analysis_id: string | null;
+  name: string;
+  type: CreativeType;
+  source: CreativeSource;
+  file_url: string | null;
+  thumbnail_url: string | null;
+  description: string | null;
+  tags: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdHook {
+  id: string;
+  user_id: string;
+  book_analysis_id: string | null;
+  text: string;
+  hook_type: 'quote' | 'declarative' | 'mini_story';
+  source: 'manuscript' | 'original';
+  source_context: string | null;
+  character: string | null;
+  scene_reference: string | null;
+  is_favorite: boolean;
+  created_at: string;
+}
+
+export interface AdCopySet {
+  id: string;
+  user_id: string;
+  book_analysis_id: string | null;
+  creative_id: string | null;
+  hook_id: string | null;
+  name: string;
+  status: 'draft' | 'final' | 'active';
+  primary_text_variations: PrimaryTextVariation[];
+  headlines: Headline[];
+  seo_description: SEODescription | null;
+  trope_list: string;
+  social_proof: string;
+  cta: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PrimaryTextVariation {
+  id: string;
+  avatar_name: string;
+  framework: string;
+  hook_text: string;
+  expansion: string;
+}
+
+export interface Headline {
+  id: string;
+  text: string;
+  char_count: number;
+  purpose: 'genre_signal' | 'heroine_power' | 'hero_devotion' | 'scene_tension' | 'trope_signal';
+}
+
+export interface SEODescription {
+  payload: string;
+  comps: string;
+  vibe_stack: string;
+  keyword_sink: string;
+}
+
+export interface ReelScript {
+  id: string;
+  user_id: string;
+  book_analysis_id: string | null;
+  creative_id: string | null;
+  hook_id: string | null;
+  name: string;
+  total_duration: number;
+  segments: ReelSegment[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReelSegment {
+  id: string;
+  order: number;
+  start_time: number;
+  end_time: number;
+  text: string;
+  notes: string | null;
+}
+
+// ============================================
+// MARKETING MODULE — SOCIAL MEDIA
+// ============================================
+export interface SocialMediaPost {
+  id: string;
+  user_id: string;
+  book_analysis_id: string | null;
+  ad_copy_set_id: string | null;
+  platform: 'instagram' | 'facebook' | 'tiktok' | 'pinterest';
+  content_type: 'reel' | 'static' | 'carousel' | 'story';
+  original_text: string;
+  adapted_text: string;
+  algospeak_applied: boolean;
+  hashtags: string[];
+  scheduled_date: string | null;
+  status: 'draft' | 'scheduled' | 'posted';
+  created_at: string;
+  updated_at: string;
+}
+
+// ============================================
 // MODULE DEFINITIONS
 // ============================================
 export interface ModuleDefinition {
