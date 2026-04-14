@@ -243,14 +243,43 @@ export default function ProductTable({ products, onRefetch, onAdjustStock }: Pro
                   {expandedId === product.id && (
                     <tr key={`${product.id}-detail`} className="bg-slate-50/50">
                       <td colSpan={9} className="px-6 py-5">
-                        {/* Tracking Only toggle */}
-                        <div className="flex items-center gap-2 mb-4">
-                          <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
-                            <input type="checkbox" checked={product.do_not_reorder}
-                              onChange={async (e) => { await updateProduct(product.id, { do_not_reorder: e.target.checked }); onRefetch(); }}
-                              className="rounded" />
-                            Tracking Only (No Reorder)
-                          </label>
+                        {/* Product Info — editable name, SKU, category */}
+                        <div className="flex flex-wrap items-center gap-4 mb-4 pb-4 border-b border-slate-200">
+                          <div className="flex-1 min-w-[200px]">
+                            <p className="text-[11px] text-slate-400 uppercase mb-0.5">Product Name</p>
+                            <EditableCell id={product.id} field="name" value={product.name} />
+                          </div>
+                          <div>
+                            <p className="text-[11px] text-slate-400 uppercase mb-0.5">SKU</p>
+                            <EditableCell id={product.id} field="sku" value={product.sku} />
+                          </div>
+                          <div>
+                            <p className="text-[11px] text-slate-400 uppercase mb-0.5">Category</p>
+                            {editingField?.id === product.id && editingField?.field === 'category' ? (
+                              <div className="flex items-center gap-1">
+                                <select value={editValue} onChange={e => setEditValue(e.target.value)}
+                                  className="px-1 py-0.5 border border-blue-400 rounded text-sm focus:outline-none">
+                                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                                <button onClick={() => saveEdit(product.id, 'category')} className="text-green-600"><Check className="w-3 h-3" /></button>
+                                <button onClick={() => setEditingField(null)} className="text-slate-400"><X className="w-3 h-3" /></button>
+                              </div>
+                            ) : (
+                              <span className="cursor-pointer hover:bg-blue-50 px-1 py-0.5 rounded group inline-flex items-center gap-1"
+                                onClick={() => startEdit(product.id, 'category', product.category)} title="Click to edit">
+                                {product.category}
+                                <Edit2 className="w-3 h-3 text-slate-300 group-hover:text-blue-400 opacity-0 group-hover:opacity-100" />
+                              </span>
+                            )}
+                          </div>
+                          <div>
+                            <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+                              <input type="checkbox" checked={product.do_not_reorder}
+                                onChange={async (e) => { await updateProduct(product.id, { do_not_reorder: e.target.checked }); onRefetch(); }}
+                                className="rounded" />
+                              Tracking Only
+                            </label>
+                          </div>
                         </div>
 
                         {/* Bento Box Grid */}
@@ -281,7 +310,7 @@ export default function ProductTable({ products, onRefetch, onAdjustStock }: Pro
                               </div>
                               <div>
                                 <p className="text-[11px] text-slate-400 uppercase mb-0.5">6Mo Bundle Sales</p>
-                                <EditableCell id={product.id} field="six_month_bundle_sales" value={product.six_month_bundle_sales} />
+                                <ReadOnlyCell value={product.six_month_bundle_sales} />
                               </div>
                               <div>
                                 <p className="text-[11px] text-slate-400 uppercase mb-0.5">Avg Daily Sales</p>
@@ -342,30 +371,34 @@ export default function ProductTable({ products, onRefetch, onAdjustStock }: Pro
                           {/* REORDER METRICS */}
                           <div className="bg-white rounded-xl border border-slate-200 p-4">
                             <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Reorder Metrics</h4>
-                            <div className="grid grid-cols-3 gap-4 text-sm">
-                              <div>
-                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">Lead Time (days)</p>
-                                <EditableCell id={product.id} field="lead_time" value={product.lead_time} />
+                            {product.do_not_reorder ? (
+                              <p className="text-sm text-slate-400 italic">N/A — Tracking Only</p>
+                            ) : (
+                              <div className="grid grid-cols-3 gap-4 text-sm">
+                                <div>
+                                  <p className="text-[11px] text-slate-400 uppercase mb-0.5">Lead Time (days)</p>
+                                  <EditableCell id={product.id} field="lead_time" value={product.lead_time} />
+                                </div>
+                                <div>
+                                  <p className="text-[11px] text-slate-400 uppercase mb-0.5">Reorder Threshold</p>
+                                  <span>{product.metrics.reorderThreshold}</span>
+                                </div>
+                                <div>
+                                  <p className="text-[11px] text-slate-400 uppercase mb-0.5">Days Remaining</p>
+                                  <span className={product.metrics.daysRemaining !== Infinity && product.metrics.daysRemaining <= product.lead_time ? 'text-red-600 font-medium' : ''}>
+                                    {product.metrics.daysRemaining === Infinity ? 'N/A' : product.metrics.daysRemaining}
+                                  </span>
+                                </div>
+                                <div>
+                                  <p className="text-[11px] text-slate-400 uppercase mb-0.5">Reorder Qty</p>
+                                  <span>{product.metrics.reorderQty}</span>
+                                </div>
+                                <div>
+                                  <p className="text-[11px] text-slate-400 uppercase mb-0.5">Reorder Cost</p>
+                                  <span>{formatCurrency(product.metrics.reorderCost)}</span>
+                                </div>
                               </div>
-                              <div>
-                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">Reorder Threshold</p>
-                                <span>{product.metrics.reorderThreshold}</span>
-                              </div>
-                              <div>
-                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">Days Remaining</p>
-                                <span className={product.metrics.daysRemaining !== Infinity && product.metrics.daysRemaining <= product.lead_time ? 'text-red-600 font-medium' : ''}>
-                                  {product.metrics.daysRemaining === Infinity ? 'N/A' : product.metrics.daysRemaining}
-                                </span>
-                              </div>
-                              <div>
-                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">Reorder Qty</p>
-                                <span>{product.metrics.reorderQty}</span>
-                              </div>
-                              <div>
-                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">Reorder Cost</p>
-                                <span>{formatCurrency(product.metrics.reorderCost)}</span>
-                              </div>
-                            </div>
+                            )}
                           </div>
 
                           {/* TIKTOK SHOP */}

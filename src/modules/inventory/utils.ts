@@ -127,22 +127,26 @@ export function calculateBundleInventory(product: Product, allProducts: Product[
 
   const componentNames = product.books_in_bundle
     .split(',')
-    .map(name => name.trim().toLowerCase())
+    .map(name => name.trim())
     .filter(Boolean);
 
   if (componentNames.length === 0) return product.bundles_inventory;
 
-  const componentInventories = componentNames.map(name => {
-    const match = allProducts.find(p =>
-      p.name.toLowerCase() === name ||
-      p.name.toLowerCase().includes(name) ||
-      name.includes(p.name.toLowerCase())
-    );
-    if (!match) return 0;
-    return match.book_stock - (match.books_purchased + match.purchased_via_bundles);
-  });
+  const componentInventories: number[] = [];
+  for (const name of componentNames) {
+    const nameLower = name.toLowerCase();
+    // Try exact match first, then partial
+    const match = allProducts.find(p => p.name.toLowerCase() === nameLower)
+      || allProducts.find(p => p.name.toLowerCase().startsWith(nameLower) || nameLower.startsWith(p.name.toLowerCase()));
 
-  return componentInventories.length > 0 ? Math.min(...componentInventories) : 0;
+    if (match && match.category !== 'Bundle' && match.category !== 'Book Box') {
+      const inv = match.book_stock - (match.books_purchased + match.purchased_via_bundles);
+      componentInventories.push(inv);
+    }
+  }
+
+  if (componentInventories.length === 0) return product.bundles_inventory;
+  return Math.min(...componentInventories);
 }
 
 // Margin color coding: green >= 50%, yellow 40-49%, red < 40%

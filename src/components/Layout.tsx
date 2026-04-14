@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
   LogOut, BookOpen, Package, BarChart3, DollarSign,
-  Sparkles, Wallet, Search, Home, Menu, X, ChevronRight
+  Sparkles, Wallet, Search, Home, Menu, X, ChevronRight, PanelLeftClose, PanelLeftOpen
 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 
@@ -21,6 +21,13 @@ export default function Layout({ children }: { children: ReactNode }) {
   const { user, profile, signOut } = useAuth();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebar-collapsed') === 'true');
+
+  function toggleCollapsed() {
+    const next = !collapsed;
+    setCollapsed(next);
+    localStorage.setItem('sidebar-collapsed', String(next));
+  }
 
   const displayName = profile?.full_name || user?.user_metadata?.full_name || user?.email || 'User';
   const avatarUrl = profile?.avatar_url || user?.user_metadata?.avatar_url;
@@ -30,38 +37,45 @@ export default function Layout({ children }: { children: ReactNode }) {
     <div className="flex h-screen bg-slate-100">
       {/* Mobile overlay */}
       {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
+        <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
       {/* Sidebar */}
       <aside className={`
         fixed lg:static inset-y-0 left-0 z-50
-        w-72 bg-slate-900 flex flex-col
-        transform transition-transform duration-200
+        ${collapsed ? 'w-[68px]' : 'w-72'} bg-slate-900 flex flex-col
+        transform transition-all duration-200
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
         {/* Brand */}
-        <div className="flex items-center gap-3 px-6 py-5 border-b border-slate-700/50">
-          <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-amber-400 to-amber-600 rounded-xl shadow-lg shadow-amber-500/20">
+        <div className={`flex items-center ${collapsed ? 'justify-center px-2' : 'gap-3 px-6'} py-5 border-b border-slate-700/50`}>
+          <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-amber-400 to-amber-600 rounded-xl shadow-lg shadow-amber-500/20 shrink-0">
             <BookOpen className="w-5 h-5 text-white" />
           </div>
-          <div>
-            <h1 className="text-white font-bold text-lg leading-tight">Command Center</h1>
-            <p className="text-slate-500 text-xs">Author Tools</p>
-          </div>
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="ml-auto lg:hidden text-slate-400 hover:text-white"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          {!collapsed && (
+            <>
+              <div>
+                <h1 className="text-white font-bold text-lg leading-tight">Command Center</h1>
+                <p className="text-slate-500 text-xs">Author Tools</p>
+              </div>
+              <button onClick={() => setSidebarOpen(false)} className="ml-auto lg:hidden text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </>
+          )}
         </div>
 
+        {/* Collapse toggle — desktop only */}
+        <button
+          onClick={toggleCollapsed}
+          className="hidden lg:flex items-center justify-center py-2 text-slate-500 hover:text-white hover:bg-slate-800/50 transition-colors"
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {collapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
+        </button>
+
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        <nav className="flex-1 px-2 py-2 space-y-1 overflow-y-auto">
           {modules.map(module => {
             const Icon = module.icon;
             const isActive = location.pathname === module.path;
@@ -70,55 +84,49 @@ export default function Layout({ children }: { children: ReactNode }) {
                 key={module.path}
                 to={module.path}
                 onClick={() => setSidebarOpen(false)}
+                title={collapsed ? module.name : undefined}
                 className={`
-                  flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group
-                  ${isActive
-                    ? 'bg-slate-800 text-white shadow-lg'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-                  }
+                  flex items-center ${collapsed ? 'justify-center px-2' : 'gap-3 px-3'} py-2.5 rounded-xl transition-all group
+                  ${isActive ? 'bg-slate-800 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}
                 `}
               >
-                <Icon className={`w-5 h-5 ${isActive ? module.color : 'text-slate-500 group-hover:text-slate-300'}`} />
-                <span className="font-medium text-sm">{module.name}</span>
-                {isActive && <ChevronRight className="w-4 h-4 ml-auto text-slate-500" />}
+                <Icon className={`w-5 h-5 shrink-0 ${isActive ? module.color : 'text-slate-500 group-hover:text-slate-300'}`} />
+                {!collapsed && <span className="font-medium text-sm">{module.name}</span>}
+                {!collapsed && isActive && <ChevronRight className="w-4 h-4 ml-auto text-slate-500" />}
               </Link>
             );
           })}
         </nav>
 
         {/* User */}
-        <div className="px-4 py-4 border-t border-slate-700/50">
-          <div className="flex items-center gap-3">
+        <div className={`${collapsed ? 'px-2' : 'px-4'} py-4 border-t border-slate-700/50`}>
+          <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'}`}>
             {avatarUrl ? (
-              <img src={avatarUrl} alt="" className="w-9 h-9 rounded-full ring-2 ring-slate-700" />
+              <img src={avatarUrl} alt="" className="w-9 h-9 rounded-full ring-2 ring-slate-700 shrink-0" />
             ) : (
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-white font-bold text-sm">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
                 {displayName.charAt(0).toUpperCase()}
               </div>
             )}
-            <div className="flex-1 min-w-0">
-              <p className="text-white text-sm font-medium truncate">{displayName}</p>
-              <p className="text-slate-500 text-xs truncate">{user?.email}</p>
-            </div>
-            <button
-              onClick={signOut}
-              className="p-2 text-slate-500 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-colors"
-              title="Sign Out"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
+            {!collapsed && (
+              <>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-sm font-medium truncate">{displayName}</p>
+                  <p className="text-slate-500 text-xs truncate">{user?.email}</p>
+                </div>
+                <button onClick={signOut} className="p-2 text-slate-500 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-colors" title="Sign Out">
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </>
+            )}
           </div>
         </div>
       </aside>
 
       {/* Main content */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Top bar */}
         <header className="flex items-center gap-4 px-6 py-4 bg-white border-b border-slate-200 shadow-sm">
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="lg:hidden text-slate-600 hover:text-slate-900"
-          >
+          <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-slate-600 hover:text-slate-900">
             <Menu className="w-6 h-6" />
           </button>
           <div className="flex items-center gap-2">
@@ -126,8 +134,6 @@ export default function Layout({ children }: { children: ReactNode }) {
             <h2 className="text-lg font-semibold text-slate-800">{currentModule.name}</h2>
           </div>
         </header>
-
-        {/* Page content */}
         <div className="flex-1 overflow-y-auto">
           {children}
         </div>
