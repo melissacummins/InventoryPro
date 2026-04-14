@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { Upload, ImagePlus, Film, Layers, FolderOpen, Wand2, ChevronRight, X, Eye, Plus } from 'lucide-react';
 import type { AdCreative, CreativeType } from '../../../lib/types';
 
@@ -29,7 +29,7 @@ export default function CreativeStudioStep({ onComplete }: Props) {
     const files = e.target.files;
     if (!files) return;
 
-    Array.from(files).forEach(file => {
+    Array.from(files).forEach((file: File) => {
       const isVideo = file.type.startsWith('video/');
       const url = URL.createObjectURL(file);
 

@@ -67,6 +67,25 @@ export default function ProductTable({ products, onRefetch, onAdjustStock }: Pro
         'six_month_book_sales', 'six_month_bundle_sales', 'csv_avg_daily', 'csv_reorder_threshold'];
       const value = numericFields.includes(field) ? Number(editValue) : editValue;
       await updateProduct(id, { [field]: value });
+
+      // When editing 6mo bundle sales on a bundle, propagate to all component books
+      if (field === 'six_month_bundle_sales') {
+        const bundle = products.find(p => p.id === id);
+        if (bundle && (bundle.category === 'Bundle' || bundle.category === 'Book Box') && bundle.books_in_bundle) {
+          const componentNames = bundle.books_in_bundle.split(',').map(n => n.trim().toLowerCase()).filter(Boolean);
+          for (const name of componentNames) {
+            const book = products.find(p =>
+              p.name.toLowerCase() === name ||
+              p.name.toLowerCase().startsWith(name) ||
+              name.startsWith(p.name.toLowerCase())
+            );
+            if (book && book.category !== 'Bundle' && book.category !== 'Book Box') {
+              await updateProduct(book.id, { six_month_bundle_sales: Number(value) });
+            }
+          }
+        }
+      }
+
       setEditingField(null);
       onRefetch();
     } catch (err) {
@@ -315,11 +334,17 @@ export default function ProductTable({ products, onRefetch, onAdjustStock }: Pro
                               </div>
                               <div>
                                 <p className="text-[11px] text-slate-400 uppercase mb-0.5">6Mo Book Sales</p>
-                                <EditableCell id={product.id} field="six_month_book_sales" value={product.six_month_book_sales} />
+                                {(product.category === 'Bundle' || product.category === 'Book Box')
+                                  ? <ReadOnlyCell value={product.six_month_book_sales} />
+                                  : <EditableCell id={product.id} field="six_month_book_sales" value={product.six_month_book_sales} />
+                                }
                               </div>
                               <div>
                                 <p className="text-[11px] text-slate-400 uppercase mb-0.5">6Mo Bundle Sales</p>
-                                <ReadOnlyCell value={product.six_month_bundle_sales} />
+                                {(product.category === 'Bundle' || product.category === 'Book Box')
+                                  ? <EditableCell id={product.id} field="six_month_bundle_sales" value={product.six_month_bundle_sales} />
+                                  : <ReadOnlyCell value={product.six_month_bundle_sales} />
+                                }
                               </div>
                               <div>
                                 <p className="text-[11px] text-slate-400 uppercase mb-0.5">Avg Daily Sales</p>

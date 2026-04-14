@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { Lightbulb, Upload, Plus, X, Star, Quote, MessageSquare, BookOpen, ChevronRight } from 'lucide-react';
 import type { AdHook } from '../../../lib/types';
 

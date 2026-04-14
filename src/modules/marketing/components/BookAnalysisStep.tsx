@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { Upload, Plus, X, BookOpen, Users, Sparkles, Heart, Search, ChevronRight } from 'lucide-react';
 import type { BookAnalysis, ReaderAvatar, CompAuthor } from '../../../lib/types';
 
