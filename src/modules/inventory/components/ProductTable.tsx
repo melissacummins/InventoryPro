@@ -152,6 +152,36 @@ export default function ProductTable({ products, onRefetch, onAdjustStock }: Pro
     return <span className={className}>{display}</span>;
   }
 
+  // Toggle a book's membership in a bundle (from the bundle's perspective)
+  async function toggleBookInBundle(bundle: typeof enriched[0], bookName: string, isCurrentlyIn: boolean) {
+    try {
+      // Update the bundle's books_in_bundle field
+      const currentBooks = bundle.books_in_bundle
+        ? bundle.books_in_bundle.split(',').map(b => b.trim()).filter(Boolean)
+        : [];
+      const newBooks = isCurrentlyIn
+        ? currentBooks.filter(b => b !== bookName)
+        : [...currentBooks, bookName];
+      await updateProduct(bundle.id, { books_in_bundle: newBooks.join(', ') });
+
+      // Update the book's bundles field
+      const book = allBooks.find(b => b.name === bookName);
+      if (book) {
+        const currentBundles = book.bundles
+          ? book.bundles.split(',').map(b => b.trim()).filter(Boolean)
+          : [];
+        const newBundles = isCurrentlyIn
+          ? currentBundles.filter(b => b !== bundle.name)
+          : [...currentBundles, bundle.name];
+        await updateProduct(book.id, { bundles: newBundles.join(', ') });
+      }
+
+      onRefetch();
+    } catch (err) {
+      console.error('Failed to toggle book in bundle:', err);
+    }
+  }
+
   function StatusBadge({ status }: { status: string }) {
     const colors: Record<string, string> = {
       'Good': 'bg-green-50 text-green-700 border border-green-200',
@@ -165,6 +195,8 @@ export default function ProductTable({ products, onRefetch, onAdjustStock }: Pro
 
   // All bundle/book box products for the "Part of Bundles" checkboxes
   const allBundles = products.filter(p => p.category === 'Bundle' || p.category === 'Book Box');
+  // All non-bundle products for the "Books in Bundle" checkboxes
+  const allBooks = products.filter(p => p.category !== 'Bundle' && p.category !== 'Book Box');
 
   // Get which bundles a product belongs to from its `bundles` field
   function getProductBundles(product: typeof enriched[0]): string[] {
@@ -486,12 +518,38 @@ export default function ProductTable({ products, onRefetch, onAdjustStock }: Pro
                           </div>
                         </div>
 
-                        {/* Bundle auto-calc info */}
-                        {(product.category === 'Bundle' || product.category === 'Book Box') && product.books_in_bundle && (
-                          <div className="mt-4 bg-blue-50 border border-blue-200 rounded-xl p-3">
-                            <p className="text-sm font-medium text-blue-700 mb-1">Bundle Auto-Calculation</p>
-                            <p className="text-xs text-blue-600">
-                              Availability ({product.metrics.bundlesInventory}) = minimum inventory across: {product.books_in_bundle}
+                        {/* Books in Bundle — only for bundle/book box products */}
+                        {(product.category === 'Bundle' || product.category === 'Book Box') && (
+                          <div className="mt-4 bg-white rounded-xl border border-slate-200 p-4">
+                            <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Books in Bundle</h4>
+                            <div className="flex flex-wrap gap-2">
+                              {allBooks.map(book => {
+                                const booksInBundle = product.books_in_bundle
+                                  ? product.books_in_bundle.split(',').map(b => b.trim()).filter(Boolean)
+                                  : [];
+                                const isIn = booksInBundle.includes(book.name);
+                                return (
+                                  <label
+                                    key={book.id}
+                                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                                      isIn
+                                        ? 'bg-blue-50 border border-blue-200 text-blue-700'
+                                        : 'bg-slate-50 border border-slate-200 text-slate-500 hover:bg-slate-100'
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isIn}
+                                      onChange={() => toggleBookInBundle(product, book.name, isIn)}
+                                      className="rounded text-blue-600 w-3 h-3"
+                                    />
+                                    {book.name}
+                                  </label>
+                                );
+                              })}
+                            </div>
+                            <p className="text-xs text-slate-500 mt-3">
+                              Bundle availability is auto-calculated from the minimum inventory of component books: <strong>{product.metrics.bundlesInventory} available</strong>
                             </p>
                           </div>
                         )}
@@ -525,6 +583,16 @@ export default function ProductTable({ products, onRefetch, onAdjustStock }: Pro
                             </div>
                           </div>
                         )}
+
+                        {/* Delete Product */}
+                        <div className="mt-4 flex justify-end">
+                          <button
+                            onClick={() => handleDelete(product.id, product.name)}
+                            className="flex items-center gap-2 px-4 py-2 text-red-500 hover:bg-red-50 rounded-lg text-sm font-medium transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" /> Delete Product
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )}
