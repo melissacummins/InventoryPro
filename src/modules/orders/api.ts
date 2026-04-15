@@ -225,16 +225,30 @@ export async function applyOrdersToInventory(updates: InventoryUpdate[]): Promis
 
     if (fetchErr || !product) continue;
 
+    // Calculate the delta: how many MORE sold since last sync
+    const prevSold = u.isBundle
+      ? (product.bundles_purchased || 0)
+      : (product.books_purchased || 0);
+    const delta = u.quantitySold - prevSold;
+
+    // Skip if nothing new sold
+    if (delta <= 0) continue;
+
+    const currentInventory = u.isBundle
+      ? (product.bundles_inventory || 0)
+      : (product.book_inventory || 0);
+    const newInventory = Math.max(0, currentInventory - delta);
+
     const updateFields: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
     };
 
     if (u.isBundle) {
       updateFields.bundles_purchased = u.quantitySold;
-      updateFields.bundles_inventory = Math.max(0, (product.bundles_inventory || 0) - u.quantitySold + (product.bundles_purchased || 0));
+      updateFields.bundles_inventory = newInventory;
     } else {
       updateFields.books_purchased = u.quantitySold;
-      updateFields.book_inventory = Math.max(0, (product.book_inventory || 0) - u.quantitySold + (product.books_purchased || 0));
+      updateFields.book_inventory = newInventory;
     }
 
     const { error: updateErr } = await supabase
@@ -245,24 +259,17 @@ export async function applyOrdersToInventory(updates: InventoryUpdate[]): Promis
     if (updateErr) continue;
 
     // Log the inventory adjustment
-    const prevValue = u.isBundle ? (product.bundles_inventory || 0) : (product.book_inventory || 0);
-    const newPurchased = u.quantitySold;
-    const oldPurchased = u.isBundle ? (product.bundles_purchased || 0) : (product.books_purchased || 0);
-    const diff = newPurchased - oldPurchased;
-
-    if (diff !== 0) {
-      await supabase.from('inventory_orders').insert({
-        user_id: userId,
-        product_id: u.productId,
-        type: 'subtract',
-        inventory_type: u.isBundle ? 'bundle' : 'book',
-        quantity: Math.abs(diff),
-        previous_value: prevValue,
-        new_value: Math.max(0, prevValue - diff),
-        source: 'Shopify Sync',
-        notes: `Shopify orders: ${u.quantitySold} total sold`,
-      });
-    }
+    await supabase.from('inventory_orders').insert({
+      user_id: userId,
+      product_id: u.productId,
+      type: 'subtract',
+      inventory_type: u.isBundle ? 'bundle' : 'book',
+      quantity: delta,
+      previous_value: currentInventory,
+      new_value: newInventory,
+      source: 'Shopify Sync',
+      notes: `${delta} new sold (${u.quantitySold} total from Shopify)`,
+    });
 
     updated++;
   }

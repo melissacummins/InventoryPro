@@ -2,13 +2,13 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
   Package, BarChart3, BookOpen, DollarSign,
-  Sparkles, Wallet, Search, ArrowRight, Megaphone, ShoppingCart
+  Sparkles, Wallet, Search, ArrowRight, Megaphone
 } from 'lucide-react';
 
 const modules = [
   {
-    name: 'Inventory',
-    description: 'Track product stock, purchase orders, book specs, and reorder points for your publishing business.',
+    name: 'Inventory & Orders',
+    description: 'Track product stock, pull Shopify orders by location, and auto-update inventory from sales.',
     path: '/inventory',
     icon: Package,
     gradient: 'from-blue-500 to-blue-600',
@@ -69,14 +69,6 @@ const modules = [
     icon: Search,
     gradient: 'from-rose-500 to-rose-600',
     shadow: 'shadow-rose-500/25',
-  },
-  {
-    name: 'Orders',
-    description: 'Pull Shopify orders by fulfillment location, match by SKU, and update product purchase counts.',
-    path: '/orders',
-    icon: ShoppingCart,
-    gradient: 'from-indigo-500 to-indigo-600',
-    shadow: 'shadow-indigo-500/25',
   },
 ];
 
