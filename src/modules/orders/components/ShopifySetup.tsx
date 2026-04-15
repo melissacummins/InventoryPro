@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Store, Key, CheckCircle, AlertCircle, Loader2, Trash2 } from 'lucide-react';
-import { saveShopifySettings, deleteShopifySettings, testShopifyConnection } from '../api';
+import { Store, Key, CheckCircle, AlertCircle, Loader2, Trash2, ExternalLink } from 'lucide-react';
+import { saveShopifySettings, deleteShopifySettings, testShopifyConnection, getShopifyOAuthUrl } from '../api';
 import type { ShopifySettings } from '../../../lib/types';
 
 interface Props {
@@ -10,14 +10,16 @@ interface Props {
 
 export default function ShopifySetup({ settings, onSaved }: Props) {
   const [storeUrl, setStoreUrl] = useState(settings?.store_url || '');
-  const [accessToken, setAccessToken] = useState(settings?.access_token || '');
+  const [clientId, setClientId] = useState(settings?.client_id || '');
+  const [clientSecret, setClientSecret] = useState(settings?.client_secret || '');
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showDisconnect, setShowDisconnect] = useState(false);
 
-  const isConfigured = !!settings;
+  const isConnected = !!settings?.access_token;
+  const hasCredentials = !!settings?.client_id;
 
   function normalizeStoreUrl(url: string): string {
     let cleaned = url.trim().toLowerCase();
@@ -29,13 +31,13 @@ export default function ShopifySetup({ settings, onSaved }: Props) {
     return cleaned;
   }
 
-  async function handleSave() {
+  async function handleSaveAndAuthorize() {
     setError('');
     setSuccess('');
 
     const normalizedUrl = normalizeStoreUrl(storeUrl);
-    if (!normalizedUrl || !accessToken.trim()) {
-      setError('Please fill in both fields.');
+    if (!normalizedUrl || !clientId.trim() || !clientSecret.trim()) {
+      setError('Please fill in all three fields.');
       return;
     }
 
@@ -43,16 +45,27 @@ export default function ShopifySetup({ settings, onSaved }: Props) {
     try {
       await saveShopifySettings({
         store_url: normalizedUrl,
-        access_token: accessToken.trim(),
+        client_id: clientId.trim(),
+        client_secret: clientSecret.trim(),
       });
       setStoreUrl(normalizedUrl);
-      setSuccess('Shopify credentials saved!');
       onSaved();
+
+      // Redirect to Shopify OAuth
+      const redirectUri = `${window.location.origin}/shopify/callback`;
+      const oauthUrl = getShopifyOAuthUrl(normalizedUrl, clientId.trim(), redirectUri);
+      window.location.href = oauthUrl;
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save settings');
-    } finally {
       setSaving(false);
     }
+  }
+
+  async function handleReauthorize() {
+    if (!settings) return;
+    const redirectUri = `${window.location.origin}/shopify/callback`;
+    const oauthUrl = getShopifyOAuthUrl(settings.store_url, settings.client_id || '', redirectUri);
+    window.location.href = oauthUrl;
   }
 
   async function handleTest() {
@@ -63,7 +76,7 @@ export default function ShopifySetup({ settings, onSaved }: Props) {
       const result = await testShopifyConnection();
       setSuccess(`Connected to "${result.shop.name}" (${result.shop.domain})`);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Connection test failed. Check your credentials.');
+      setError(err instanceof Error ? err.message : 'Connection test failed.');
     } finally {
       setTesting(false);
     }
@@ -73,7 +86,8 @@ export default function ShopifySetup({ settings, onSaved }: Props) {
     try {
       await deleteShopifySettings();
       setStoreUrl('');
-      setAccessToken('');
+      setClientId('');
+      setClientSecret('');
       setShowDisconnect(false);
       setSuccess('');
       onSaved();
@@ -84,13 +98,13 @@ export default function ShopifySetup({ settings, onSaved }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Status Banner */}
-      {isConfigured && (
+      {/* Connected Banner */}
+      {isConnected && (
         <div className="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
           <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
           <div className="flex-1">
             <p className="text-sm font-medium text-emerald-800">Connected to Shopify</p>
-            <p className="text-xs text-emerald-600">{settings.store_url}</p>
+            <p className="text-xs text-emerald-600">{settings!.store_url}</p>
           </div>
           <button
             onClick={() => setShowDisconnect(!showDisconnect)}
@@ -101,9 +115,20 @@ export default function ShopifySetup({ settings, onSaved }: Props) {
         </div>
       )}
 
+      {/* Credentials saved but not yet authorized */}
+      {hasCredentials && !isConnected && (
+        <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-amber-800">Credentials saved — authorization needed</p>
+            <p className="text-xs text-amber-600">Click "Authorize with Shopify" below to complete the connection.</p>
+          </div>
+        </div>
+      )}
+
       {showDisconnect && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
-          <p className="text-sm text-red-700 mb-3">Are you sure you want to disconnect your Shopify store? This will remove your saved credentials.</p>
+          <p className="text-sm text-red-700 mb-3">Are you sure? This will remove your Shopify credentials and disconnect the integration.</p>
           <div className="flex gap-2">
             <button onClick={handleDisconnect} className="px-3 py-1.5 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700">
               Disconnect
@@ -128,22 +153,34 @@ export default function ShopifySetup({ settings, onSaved }: Props) {
             placeholder="melissacummins.myshopify.com"
             className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
           />
-          <p className="text-xs text-slate-400 mt-1">Your Shopify store address (e.g., your-store.myshopify.com)</p>
         </div>
 
         <div>
           <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1.5">
-            <Key className="w-4 h-4" /> Admin API Access Token
+            <Key className="w-4 h-4" /> Client ID
+          </label>
+          <input
+            type="text"
+            value={clientId}
+            onChange={(e) => setClientId(e.target.value)}
+            placeholder="Paste your Client ID from the Dev Dashboard"
+            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          />
+        </div>
+
+        <div>
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1.5">
+            <Key className="w-4 h-4" /> Client Secret
           </label>
           <input
             type="password"
-            value={accessToken}
-            onChange={(e) => setAccessToken(e.target.value)}
-            placeholder="shpat_xxxxxxxxxxxxxxxxxxxxx"
+            value={clientSecret}
+            onChange={(e) => setClientSecret(e.target.value)}
+            placeholder="Paste your Client Secret from the Dev Dashboard"
             className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
           />
           <p className="text-xs text-slate-400 mt-1">
-            From Shopify Dev Dashboard: Create app &rarr; Configure Admin API scopes (read_orders, read_products, read_locations) &rarr; Install &rarr; Copy token
+            Both are found in your Shopify Dev Dashboard &rarr; Settings &rarr; Credentials
           </p>
         </div>
       </div>
@@ -163,24 +200,34 @@ export default function ShopifySetup({ settings, onSaved }: Props) {
       )}
 
       {/* Actions */}
-      <div className="flex gap-3">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50"
-        >
-          {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-          {isConfigured ? 'Update Credentials' : 'Save & Connect'}
-        </button>
-        {isConfigured && (
+      <div className="flex flex-wrap gap-3">
+        {!isConnected && (
           <button
-            onClick={handleTest}
-            disabled={testing}
-            className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 disabled:opacity-50"
+            onClick={handleSaveAndAuthorize}
+            disabled={saving}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50"
           >
-            {testing && <Loader2 className="w-4 h-4 animate-spin" />}
-            Test Connection
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
+            Save & Authorize with Shopify
           </button>
+        )}
+        {isConnected && (
+          <>
+            <button
+              onClick={handleTest}
+              disabled={testing}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {testing && <Loader2 className="w-4 h-4 animate-spin" />}
+              Test Connection
+            </button>
+            <button
+              onClick={handleReauthorize}
+              className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50"
+            >
+              <ExternalLink className="w-4 h-4" /> Re-authorize
+            </button>
+          </>
         )}
       </div>
     </div>

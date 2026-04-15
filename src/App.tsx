@@ -12,6 +12,7 @@ import MarketingModule from './modules/marketing/MarketingModule';
 import FinStreamModule from './modules/finstream/FinStreamModule';
 import KDPOptimizerModule from './modules/kdp-optimizer/KDPOptimizerModule';
 import OrdersModule from './modules/orders/OrdersModule';
+import ShopifyCallback from './modules/orders/components/ShopifyCallback';
 
 function ProtectedRoutes() {
   const { user, loading } = useAuth();
@@ -44,6 +45,7 @@ function ProtectedRoutes() {
         <Route path="finstream" element={<FinStreamModule />} />
         <Route path="kdp-optimizer" element={<KDPOptimizerModule />} />
         <Route path="orders" element={<OrdersModule />} />
+        <Route path="shopify/callback" element={<ShopifyCallback />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>

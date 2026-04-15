@@ -1,7 +1,11 @@
 import { supabase } from '../../lib/supabase';
 import type { ShopifySettings, ShopifyOrder, ShopifySyncLog } from '../../lib/types';
 
-type ShopifySettingsInsert = Pick<ShopifySettings, 'store_url' | 'access_token'>;
+type ShopifySettingsInsert = {
+  store_url: string;
+  client_id: string;
+  client_secret: string;
+};
 
 async function getUserId() {
   const { data: { user } } = await supabase.auth.getUser();
@@ -29,7 +33,8 @@ export async function saveShopifySettings(settings: ShopifySettingsInsert): Prom
       .from('shopify_settings')
       .update({
         store_url: settings.store_url,
-        access_token: settings.access_token,
+        client_id: settings.client_id,
+        client_secret: settings.client_secret,
         updated_at: new Date().toISOString(),
       })
       .eq('user_id', userId)
@@ -46,6 +51,23 @@ export async function saveShopifySettings(settings: ShopifySettingsInsert): Prom
     .single();
   if (error) throw error;
   return data;
+}
+
+// ---- OAuth Token Exchange ----
+
+export async function exchangeOAuthCode(code: string): Promise<{ success: boolean; scope?: string }> {
+  const { data, error } = await supabase.rpc('shopify_exchange_token', {
+    p_code: code,
+  });
+
+  if (error) throw new Error(error.message || 'Token exchange failed');
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
+
+export function getShopifyOAuthUrl(storeUrl: string, clientId: string, redirectUri: string): string {
+  const scopes = 'read_orders,read_products,read_locations';
+  return `https://${storeUrl}/admin/oauth/authorize?client_id=${clientId}&scope=${scopes}&redirect_uri=${encodeURIComponent(redirectUri)}`;
 }
 
 export async function updateDefaultLocation(locationId: string, locationName: string): Promise<void> {

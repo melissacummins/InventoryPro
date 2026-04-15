@@ -17,8 +17,8 @@ export default function OrdersModule() {
     );
   }
 
-  // Not configured — show setup
-  if (!settings) {
+  // Not configured or not yet authorized — show setup
+  if (!settings || !settings.access_token) {
     return (
       <div className="p-6 lg:p-8 max-w-3xl mx-auto">
         <div className="mb-6">

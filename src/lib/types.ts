@@ -556,7 +556,9 @@ export interface ShopifySettings {
   id: string;
   user_id: string;
   store_url: string;
-  access_token: string;
+  access_token: string | null;
+  client_id: string | null;
+  client_secret: string | null;
   default_location_id: string | null;
   default_location_name: string | null;
   last_sync_at: string | null;
