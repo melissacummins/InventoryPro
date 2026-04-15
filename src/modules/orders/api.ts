@@ -114,6 +114,85 @@ export async function fetchShopifyLocations() {
   return data.locations || [];
 }
 
+// ---- Shopify Products (for SKU → inventory_item_id mapping) ----
+
+export async function fetchShopifyProducts(): Promise<{ id: number; title: string; variants: { id: number; sku: string; inventory_item_id: number }[] }[]> {
+  let allProducts: { id: number; title: string; variants: { id: number; sku: string; inventory_item_id: number }[] }[] = [];
+  let pageInfo: string | null = null;
+  let page = 0;
+
+  do {
+    const params: Record<string, unknown> = {};
+    if (pageInfo) params.page_info = pageInfo;
+    const data = await callShopifyProxy('get_products', params);
+    allProducts = allProducts.concat(data.products || []);
+    pageInfo = data.nextPageInfo || null;
+    page++;
+  } while (pageInfo && page < 20);
+
+  return allProducts;
+}
+
+export async function syncShopifyProductMapping(): Promise<number> {
+  const shopifyProducts = await fetchShopifyProducts();
+  const { data: localProducts } = await supabase.from('products').select('id, sku');
+  if (!localProducts) return 0;
+
+  let mapped = 0;
+  for (const sp of shopifyProducts) {
+    for (const variant of sp.variants || []) {
+      if (!variant.sku) continue;
+      const match = localProducts.find(lp => lp.sku.trim().toUpperCase() === variant.sku.trim().toUpperCase());
+      if (match) {
+        await supabase.from('products').update({
+          shopify_inventory_item_id: String(variant.inventory_item_id),
+          shopify_variant_id: String(variant.id),
+          updated_at: new Date().toISOString(),
+        }).eq('id', match.id);
+        mapped++;
+      }
+    }
+  }
+  return mapped;
+}
+
+// ---- Shopify Inventory Read/Write ----
+
+export async function getShopifyInventoryLevels(locationId: string, inventoryItemIds: string[]): Promise<{ inventory_item_id: number; available: number }[]> {
+  const data = await callShopifyProxy('get_inventory_levels', {
+    location_id: locationId,
+    inventory_item_ids: inventoryItemIds.join(','),
+  });
+  return data.inventory_levels || [];
+}
+
+export async function setShopifyInventoryLevel(locationId: string, inventoryItemId: string, available: number): Promise<void> {
+  await callShopifyProxy('set_inventory', {
+    location_id: locationId,
+    inventory_item_id: inventoryItemId,
+    available: String(available),
+  });
+}
+
+export async function pushInventoryToShopify(
+  locationId: string,
+  updates: { productId: string; inventoryItemId: string; available: number }[]
+): Promise<{ success: number; failed: number }> {
+  let success = 0;
+  let failed = 0;
+
+  for (const u of updates) {
+    try {
+      await setShopifyInventoryLevel(locationId, u.inventoryItemId, u.available);
+      success++;
+    } catch {
+      failed++;
+    }
+  }
+
+  return { success, failed };
+}
+
 export interface FetchOrdersParams {
   created_at_min?: string;
   created_at_max?: string;

@@ -44,6 +44,8 @@ export interface Product {
   csv_avg_daily: number;
   csv_reorder_threshold: number;
   do_not_reorder: boolean;
+  shopify_inventory_item_id: string | null;
+  shopify_variant_id: string | null;
   created_at: string;
   updated_at: string;
 }

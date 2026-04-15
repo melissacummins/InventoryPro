@@ -1,12 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   RefreshCw, MapPin, Calendar, Package, ShoppingCart,
-  ChevronDown, ChevronUp, AlertCircle, Loader2, Search, ArrowUpDown, CheckCircle2
+  ChevronDown, ChevronUp, AlertCircle, Loader2, Search, ArrowUpDown, CheckCircle2,
+  Upload, Link2
 } from 'lucide-react';
 import {
   fetchShopifyLocations, fetchShopifyOrders, upsertOrders,
   logSync, updateLastSync, updateDefaultLocation,
-  applyOrdersToInventory
+  applyOrdersToInventory, syncShopifyProductMapping, pushInventoryToShopify
 } from '../api';
 import type { InventoryUpdate } from '../api';
 import { useShopifyOrders } from '../hooks/useShopifyOrders';
@@ -43,6 +44,12 @@ export default function OrdersDashboard({ settings, onSettingsRefresh }: Props) 
 
   // Products for SKU matching
   const [products, setProducts] = useState<Product[]>([]);
+
+  // Push to Shopify state
+  const [mappingSyncing, setMappingSyncing] = useState(false);
+  const [pushing, setPushing] = useState(false);
+  const [pushMessage, setPushMessage] = useState('');
+  const [pushError, setPushError] = useState('');
 
   // UI state
   const [search, setSearch] = useState('');
@@ -259,6 +266,60 @@ export default function OrdersDashboard({ settings, onSettingsRefresh }: Props) 
     }
   }
 
+  // Sync SKU → inventory_item_id mapping from Shopify
+  async function handleSyncMapping() {
+    setMappingSyncing(true);
+    setPushMessage('');
+    setPushError('');
+    try {
+      const mapped = await syncShopifyProductMapping();
+      await loadProducts();
+      setPushMessage(`Linked ${mapped} product${mapped !== 1 ? 's' : ''} to Shopify inventory items by SKU`);
+    } catch (err: unknown) {
+      setPushError(err instanceof Error ? err.message : 'Failed to sync product mapping');
+    } finally {
+      setMappingSyncing(false);
+    }
+  }
+
+  // Push current inventory levels to Shopify
+  async function handlePushToShopify() {
+    if (!selectedLocationId) {
+      setPushError('Please select a fulfillment location first.');
+      return;
+    }
+
+    setPushing(true);
+    setPushMessage('');
+    setPushError('');
+    try {
+      const mappedProducts = products.filter(p => p.shopify_inventory_item_id);
+      if (mappedProducts.length === 0) {
+        setPushError('No products are linked to Shopify. Click "Link Products" first to map SKUs.');
+        setPushing(false);
+        return;
+      }
+
+      const updates = mappedProducts.map(p => {
+        const isBundle = p.category === 'Bundle' || p.category === 'Book Box';
+        return {
+          productId: p.id,
+          inventoryItemId: p.shopify_inventory_item_id!,
+          available: isBundle ? p.bundles_inventory : p.book_inventory,
+        };
+      });
+
+      const result = await pushInventoryToShopify(selectedLocationId, updates);
+      setPushMessage(`Pushed inventory to Shopify: ${result.success} updated${result.failed > 0 ? `, ${result.failed} failed` : ''}`);
+    } catch (err: unknown) {
+      setPushError(err instanceof Error ? err.message : 'Failed to push inventory to Shopify');
+    } finally {
+      setPushing(false);
+    }
+  }
+
+  const mappedCount = products.filter(p => p.shopify_inventory_item_id).length;
+
   function toggleSort(field: SortField) {
     if (sortField === field) {
       setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -371,6 +432,50 @@ export default function OrdersDashboard({ settings, onSettingsRefresh }: Props) 
         <StatCard icon={Package} label="Total Items Sold" value={totalItems} color="text-indigo-600" bg="bg-indigo-50" />
         <StatCard icon={Package} label="Matched SKUs" value={matchedProducts} color="text-emerald-600" bg="bg-emerald-50" />
         <StatCard icon={AlertCircle} label="Unmatched SKUs" value={unmatchedProducts} color="text-amber-600" bg="bg-amber-50" />
+      </div>
+
+      {/* Push to Shopify */}
+      <div className="bg-white rounded-xl border border-slate-200 p-5">
+        <h3 className="font-semibold text-slate-800 mb-2">Push Inventory to Shopify</h3>
+        <p className="text-sm text-slate-500 mb-4">
+          Update your Shopify store's inventory levels to match what's in the app.
+          Products are linked by SKU — click "Link Products" first if you haven't already.
+        </p>
+
+        <div className="flex flex-wrap items-center gap-3 mb-3">
+          <button
+            onClick={handleSyncMapping}
+            disabled={mappingSyncing}
+            className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 disabled:opacity-50"
+          >
+            {mappingSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
+            {mappingSyncing ? 'Linking...' : 'Link Products'}
+          </button>
+          <button
+            onClick={handlePushToShopify}
+            disabled={pushing || !selectedLocationId || mappedCount === 0}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+          >
+            {pushing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+            {pushing ? 'Pushing...' : 'Push to Shopify'}
+          </button>
+          <span className="text-xs text-slate-400">
+            {mappedCount} of {products.length} products linked to Shopify
+          </span>
+        </div>
+
+        {pushError && (
+          <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+            <p className="text-sm text-red-700">{pushError}</p>
+          </div>
+        )}
+        {pushMessage && (
+          <div className="flex items-start gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+            <p className="text-sm text-emerald-700">{pushMessage}</p>
+          </div>
+        )}
       </div>
 
       {/* SKU Breakdown Table */}
