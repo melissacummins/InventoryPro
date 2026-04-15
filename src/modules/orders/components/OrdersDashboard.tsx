@@ -1,15 +1,16 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   RefreshCw, MapPin, Calendar, Package, ShoppingCart,
-  ChevronDown, ChevronUp, AlertCircle, Loader2, Search, ArrowUpDown
+  ChevronDown, ChevronUp, AlertCircle, Loader2, Search, ArrowUpDown, CheckCircle2
 } from 'lucide-react';
 import {
   fetchShopifyLocations, fetchShopifyOrders, upsertOrders,
   logSync, updateLastSync, updateDefaultLocation,
-  updateProductPurchaseCounts
+  applyOrdersToInventory
 } from '../api';
+import type { InventoryUpdate } from '../api';
 import { useShopifyOrders } from '../hooks/useShopifyOrders';
-import type { ShopifySettings, ShopifyLocation, ShopifyOrder, ShopifyLineItem, SkuMatch, Product } from '../../../lib/types';
+import type { ShopifySettings, ShopifyLocation, ShopifyLineItem, SkuMatch, Product } from '../../../lib/types';
 import { supabase } from '../../../lib/supabase';
 
 interface Props {
@@ -37,8 +38,8 @@ export default function OrdersDashboard({ settings, onSettingsRefresh }: Props) 
   });
   const [dateTo, setDateTo] = useState(() => new Date().toISOString().split('T')[0]);
 
-  // Orders
-  const { orders, loading: loadingOrders, refetch: refetchOrders } = useShopifyOrders(selectedLocationId || undefined);
+  // Orders — fetch ALL orders (not filtered by location in DB query)
+  const { orders, loading: loadingOrders, refetch: refetchOrders } = useShopifyOrders();
 
   // Products for SKU matching
   const [products, setProducts] = useState<Product[]>([]);
@@ -47,8 +48,7 @@ export default function OrdersDashboard({ settings, onSettingsRefresh }: Props) 
   const [search, setSearch] = useState('');
   const [sortField, setSortField] = useState<SortField>('totalQuantity');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
-  const [expandedSku, setExpandedSku] = useState<string | null>(null);
-  const [applying, setApplying] = useState(false);
+  const [inventoryApplied, setInventoryApplied] = useState(false);
 
   // Load locations on mount
   useEffect(() => {
@@ -152,11 +152,12 @@ export default function OrdersDashboard({ settings, onSettingsRefresh }: Props) 
   const matchedProducts = skuMatches.filter(m => m.productId).length;
   const unmatchedProducts = skuMatches.filter(m => !m.productId).length;
 
-  // Sync orders from Shopify
+  // Sync orders from Shopify AND auto-apply to inventory
   async function handleSync() {
     setSyncing(true);
     setSyncError('');
     setSyncSuccess('');
+    setInventoryApplied(false);
 
     try {
       const userId = (await supabase.auth.getUser()).data.user?.id;
@@ -179,25 +180,30 @@ export default function OrdersDashboard({ settings, onSettingsRefresh }: Props) 
         allOrders = allOrders.concat(result.orders);
         pageInfo = result.nextPageInfo;
         page++;
-      } while (pageInfo && page < 20); // safety limit
+      } while (pageInfo && page < 20);
 
-      // Find the selected location name
       const selectedLoc = locations.find(l => String(l.id) === selectedLocationId);
       const locationName = selectedLoc?.name || '';
 
-      // Filter by fulfillment location and transform
+      // Filter by location — include unfulfilled orders (they haven't been
+      // assigned a fulfillment location yet but still represent pending sales)
       const filteredOrders = allOrders
         .filter((o: Record<string, unknown>) => {
           if (!selectedLocationId) return true;
-          // Check order's location_id or fulfillment locations
+          // Match if order's location_id matches
           if (String(o.location_id) === selectedLocationId) return true;
+          // Match if any fulfillment is from this location
           const fulfillments = (o.fulfillments as Record<string, unknown>[]) || [];
-          return fulfillments.some((f: Record<string, unknown>) => String(f.location_id) === selectedLocationId);
+          if (fulfillments.some((f: Record<string, unknown>) => String(f.location_id) === selectedLocationId)) return true;
+          // Include unfulfilled orders (no fulfillments yet = hasn't shipped)
+          const fulfillmentStatus = o.fulfillment_status as string | null;
+          if (!fulfillmentStatus || fulfillmentStatus === 'null') return true;
+          return false;
         })
         .map((o: Record<string, unknown>) => ({
           user_id: userId,
           shopify_order_id: String(o.id),
-          order_number: String((o as Record<string, unknown>).name || (o as Record<string, unknown>).order_number || ''),
+          order_number: String(o.name || o.order_number || ''),
           order_date: o.created_at as string,
           customer_name: o.customer
             ? `${(o.customer as Record<string, unknown>).first_name || ''} ${(o.customer as Record<string, unknown>).last_name || ''}`.trim()
@@ -210,7 +216,7 @@ export default function OrdersDashboard({ settings, onSettingsRefresh }: Props) 
           line_items: o.line_items || [],
         }));
 
-      const count = await upsertOrders(filteredOrders as Omit<ShopifyOrder, 'id' | 'synced_at'>[]);
+      const count = await upsertOrders(filteredOrders as Parameters<typeof upsertOrders>[0]);
       await updateLastSync();
       await logSync({
         sync_type: 'orders',
@@ -223,8 +229,19 @@ export default function OrdersDashboard({ settings, onSettingsRefresh }: Props) 
       });
 
       onSettingsRefresh();
-      refetchOrders();
-      setSyncSuccess(`Synced ${count} orders from "${locationName || 'all locations'}"`);
+      await refetchOrders();
+      await loadProducts();
+
+      // Auto-apply to inventory
+      const inventoryUpdates = buildInventoryUpdates(filteredOrders, products);
+      if (inventoryUpdates.length > 0) {
+        const appliedCount = await applyOrdersToInventory(inventoryUpdates);
+        await loadProducts(); // refresh products after update
+        setInventoryApplied(true);
+        setSyncSuccess(`Synced ${count} orders and updated inventory for ${appliedCount} products`);
+      } else {
+        setSyncSuccess(`Synced ${count} orders from "${locationName || 'all locations'}". No matching SKUs found to update inventory.`);
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Sync failed';
       setSyncError(message);
@@ -239,27 +256,6 @@ export default function OrdersDashboard({ settings, onSettingsRefresh }: Props) 
       }).catch(() => {});
     } finally {
       setSyncing(false);
-    }
-  }
-
-  // Apply matched counts to products
-  async function handleApplyToProducts() {
-    setApplying(true);
-    try {
-      const updates = skuMatches
-        .filter(m => m.productId)
-        .map(m => ({
-          productId: m.productId,
-          booksPurchased: m.isBundle ? 0 : m.totalQuantity,
-          purchasedViaBundles: m.isBundle ? m.totalQuantity : 0,
-        }));
-
-      await updateProductPurchaseCounts(updates);
-      setSyncSuccess(`Updated purchase counts for ${updates.length} products`);
-    } catch (err: unknown) {
-      setSyncError(err instanceof Error ? err.message : 'Failed to update products');
-    } finally {
-      setApplying(false);
     }
   }
 
@@ -341,7 +337,7 @@ export default function OrdersDashboard({ settings, onSettingsRefresh }: Props) 
               className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50"
             >
               {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-              {syncing ? 'Syncing...' : 'Sync Orders'}
+              {syncing ? 'Syncing...' : 'Sync & Update Inventory'}
             </button>
           </div>
         </div>
@@ -362,7 +358,8 @@ export default function OrdersDashboard({ settings, onSettingsRefresh }: Props) 
           </div>
         )}
         {syncSuccess && (
-          <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+          <div className="mt-3 flex items-start gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+            {inventoryApplied && <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />}
             <p className="text-sm text-emerald-700">{syncSuccess}</p>
           </div>
         )}
@@ -381,25 +378,15 @@ export default function OrdersDashboard({ settings, onSettingsRefresh }: Props) 
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-slate-100">
             <h3 className="font-semibold text-slate-800">Sales by SKU</h3>
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search SKU or product..."
-                  className="pl-9 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 w-56"
-                />
-              </div>
-              <button
-                onClick={handleApplyToProducts}
-                disabled={applying || matchedProducts === 0}
-                className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 disabled:opacity-50"
-              >
-                {applying && <Loader2 className="w-3 h-3 animate-spin" />}
-                Apply to Products
-              </button>
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search SKU or product..."
+                className="pl-9 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 w-56"
+              />
             </div>
           </div>
 
@@ -433,11 +420,7 @@ export default function OrdersDashboard({ settings, onSettingsRefresh }: Props) 
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredMatches.map(match => (
-                  <tr
-                    key={match.sku}
-                    className="hover:bg-slate-50 cursor-pointer"
-                    onClick={() => setExpandedSku(expandedSku === match.sku ? null : match.sku)}
-                  >
+                  <tr key={match.sku} className="hover:bg-slate-50">
                     <td className="px-4 py-3 font-mono text-xs text-slate-600">{match.sku}</td>
                     <td className="px-4 py-3 text-slate-800">{match.productName}</td>
                     <td className="px-4 py-3">
@@ -533,7 +516,7 @@ export default function OrdersDashboard({ settings, onSettingsRefresh }: Props) 
           <ShoppingCart className="w-12 h-12 text-slate-300 mx-auto mb-3" />
           <h3 className="text-lg font-semibold text-slate-700 mb-1">No orders synced yet</h3>
           <p className="text-sm text-slate-400 max-w-md mx-auto">
-            Select a fulfillment location, choose a date range, and click "Sync Orders" to pull your Shopify orders.
+            Select a fulfillment location, choose a date range, and click "Sync & Update Inventory" to pull your Shopify orders and automatically update your product inventory.
           </p>
         </div>
       )}
@@ -545,6 +528,39 @@ export default function OrdersDashboard({ settings, onSettingsRefresh }: Props) 
       )}
     </div>
   );
+}
+
+// Build inventory updates by matching order line items to products by SKU
+function buildInventoryUpdates(
+  orders: Record<string, unknown>[],
+  products: Product[]
+): InventoryUpdate[] {
+  const skuTotals = new Map<string, number>();
+
+  for (const order of orders) {
+    const lineItems = (order.line_items as { sku?: string; quantity: number }[]) || [];
+    for (const item of lineItems) {
+      if (!item.sku) continue;
+      const key = item.sku.trim().toUpperCase();
+      skuTotals.set(key, (skuTotals.get(key) || 0) + item.quantity);
+    }
+  }
+
+  const updates: InventoryUpdate[] = [];
+  for (const [sku, qty] of skuTotals) {
+    const product = products.find(p => p.sku.trim().toUpperCase() === sku);
+    if (product) {
+      updates.push({
+        productId: product.id,
+        productName: product.name,
+        sku: product.sku,
+        isBundle: product.category === 'Bundle' || product.category === 'Book Box',
+        quantitySold: qty,
+      });
+    }
+  }
+
+  return updates;
 }
 
 function StatCard({ icon: Icon, label, value, color, bg }: {

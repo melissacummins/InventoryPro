@@ -201,22 +201,71 @@ export async function updateLastSync(): Promise<void> {
   if (error) throw error;
 }
 
-// ---- Update product purchase counts from order data ----
+// ---- Update product inventory from order data ----
 
-export async function updateProductPurchaseCounts(
-  updates: { productId: string; booksPurchased: number; purchasedViaBundles: number }[]
-): Promise<void> {
+export interface InventoryUpdate {
+  productId: string;
+  productName: string;
+  sku: string;
+  isBundle: boolean;
+  quantitySold: number;
+}
+
+export async function applyOrdersToInventory(updates: InventoryUpdate[]): Promise<number> {
+  const userId = await getUserId();
+  let updated = 0;
+
   for (const u of updates) {
+    // Fetch current product values
+    const { data: product, error: fetchErr } = await supabase
+      .from('products')
+      .select('book_inventory, bundles_inventory, books_purchased, bundles_purchased')
+      .eq('id', u.productId)
+      .single();
+
+    if (fetchErr || !product) continue;
+
     const updateFields: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
     };
-    if (u.booksPurchased > 0) updateFields.books_purchased = u.booksPurchased;
-    if (u.purchasedViaBundles > 0) updateFields.purchased_via_bundles = u.purchasedViaBundles;
 
-    const { error } = await supabase
+    if (u.isBundle) {
+      updateFields.bundles_purchased = u.quantitySold;
+      updateFields.bundles_inventory = Math.max(0, (product.bundles_inventory || 0) - u.quantitySold + (product.bundles_purchased || 0));
+    } else {
+      updateFields.books_purchased = u.quantitySold;
+      updateFields.book_inventory = Math.max(0, (product.book_inventory || 0) - u.quantitySold + (product.books_purchased || 0));
+    }
+
+    const { error: updateErr } = await supabase
       .from('products')
       .update(updateFields)
       .eq('id', u.productId);
-    if (error) throw error;
+
+    if (updateErr) continue;
+
+    // Log the inventory adjustment
+    const prevValue = u.isBundle ? (product.bundles_inventory || 0) : (product.book_inventory || 0);
+    const newPurchased = u.quantitySold;
+    const oldPurchased = u.isBundle ? (product.bundles_purchased || 0) : (product.books_purchased || 0);
+    const diff = newPurchased - oldPurchased;
+
+    if (diff !== 0) {
+      await supabase.from('inventory_orders').insert({
+        user_id: userId,
+        product_id: u.productId,
+        type: 'subtract',
+        inventory_type: u.isBundle ? 'bundle' : 'book',
+        quantity: Math.abs(diff),
+        previous_value: prevValue,
+        new_value: Math.max(0, prevValue - diff),
+        source: 'Shopify Sync',
+        notes: `Shopify orders: ${u.quantitySold} total sold`,
+      });
+    }
+
+    updated++;
   }
+
+  return updated;
 }
