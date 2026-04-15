@@ -369,47 +369,60 @@ export default function ProductTable({ products, onRefetch, onAdjustStock }: Pro
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           {/* INVENTORY & SALES */}
                           <div className="bg-white rounded-xl border border-slate-200 p-4">
-                            <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Inventory & Sales</h4>
+                            <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+                              {(product.category === 'Bundle' || product.category === 'Book Box') ? 'Bundle Inventory & Sales' : 'Inventory & Sales'}
+                            </h4>
                             <div className="grid grid-cols-3 gap-4 text-sm">
-                              <div>
-                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">Book Stock</p>
-                                <EditableCell id={product.id} field="book_stock" value={product.book_stock} />
-                              </div>
-                              <div>
-                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">Books Purchased</p>
-                                <ReadOnlyCell value={product.books_purchased} />
-                              </div>
-                              <div>
-                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">Purchased via Bundles</p>
-                                <ReadOnlyCell value={product.purchased_via_bundles} />
-                              </div>
-                              <div>
-                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">Book Inventory</p>
-                                <span className="font-semibold">{product.metrics.bookInventory}</span>
-                              </div>
-                              <div>
-                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">6Mo Book Sales</p>
-                                {(product.category === 'Bundle' || product.category === 'Book Box')
-                                  ? <ReadOnlyCell value={product.six_month_book_sales} />
-                                  : <EditableCell id={product.id} field="six_month_book_sales" value={product.six_month_book_sales} />
-                                }
-                              </div>
-                              <div>
-                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">6Mo Bundle Sales</p>
-                                {(product.category === 'Bundle' || product.category === 'Book Box')
-                                  ? <EditableCell id={product.id} field="six_month_bundle_sales" value={product.six_month_bundle_sales} />
-                                  : <ReadOnlyCell value={product.six_month_bundle_sales} />
-                                }
-                              </div>
-                              <div>
-                                <p className="text-[11px] text-slate-400 uppercase mb-0.5">Avg Daily Sales</p>
-                                <span>{product.metrics.avgDailySales.toFixed(4)}</span>
-                              </div>
-                              {(product.category === 'Bundle' || product.category === 'Book Box') && (
-                                <div>
-                                  <p className="text-[11px] text-slate-400 uppercase mb-0.5">Bundles Inventory</p>
-                                  <span className="font-semibold">{product.metrics.bundlesInventory}</span>
-                                </div>
+                              {(product.category === 'Bundle' || product.category === 'Book Box') ? (
+                                <>
+                                  <div>
+                                    <p className="text-[11px] text-slate-400 uppercase mb-0.5">Bundles Inventory</p>
+                                    <span className="font-semibold">{product.metrics.bundlesInventory}</span>
+                                  </div>
+                                  <div>
+                                    <p className="text-[11px] text-slate-400 uppercase mb-0.5">Bundles Purchased</p>
+                                    <ReadOnlyCell value={product.bundles_purchased} />
+                                  </div>
+                                  <div>
+                                    <p className="text-[11px] text-slate-400 uppercase mb-0.5">6Mo Bundle Sales</p>
+                                    <EditableCell id={product.id} field="six_month_bundle_sales" value={product.six_month_bundle_sales} />
+                                  </div>
+                                  <div>
+                                    <p className="text-[11px] text-slate-400 uppercase mb-0.5">Avg Daily Sales</p>
+                                    <span>{product.metrics.avgDailySales.toFixed(4)}</span>
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  <div>
+                                    <p className="text-[11px] text-slate-400 uppercase mb-0.5">Book Stock</p>
+                                    <EditableCell id={product.id} field="book_stock" value={product.book_stock} />
+                                  </div>
+                                  <div>
+                                    <p className="text-[11px] text-slate-400 uppercase mb-0.5">Books Purchased</p>
+                                    <ReadOnlyCell value={product.books_purchased} />
+                                  </div>
+                                  <div>
+                                    <p className="text-[11px] text-slate-400 uppercase mb-0.5">Purchased via Bundles</p>
+                                    <ReadOnlyCell value={product.purchased_via_bundles} />
+                                  </div>
+                                  <div>
+                                    <p className="text-[11px] text-slate-400 uppercase mb-0.5">Book Inventory</p>
+                                    <span className="font-semibold">{product.metrics.bookInventory}</span>
+                                  </div>
+                                  <div>
+                                    <p className="text-[11px] text-slate-400 uppercase mb-0.5">6Mo Book Sales</p>
+                                    <EditableCell id={product.id} field="six_month_book_sales" value={product.six_month_book_sales} />
+                                  </div>
+                                  <div>
+                                    <p className="text-[11px] text-slate-400 uppercase mb-0.5">6Mo Bundle Sales</p>
+                                    <ReadOnlyCell value={product.six_month_bundle_sales} />
+                                  </div>
+                                  <div>
+                                    <p className="text-[11px] text-slate-400 uppercase mb-0.5">Avg Daily Sales</p>
+                                    <span>{product.metrics.avgDailySales.toFixed(4)}</span>
+                                  </div>
+                                </>
                               )}
                             </div>
                           </div>

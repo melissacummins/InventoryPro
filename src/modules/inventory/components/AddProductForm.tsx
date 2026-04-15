@@ -24,6 +24,7 @@ export default function AddProductForm({ onClose, onRefetch }: AddProductFormPro
     free_shipping: 0,
     book_stock: 0,
     book_inventory: 0,
+    bundles_inventory: 0,
     lead_time: 0,
     books_in_bundle: '',
     bundles: '',
@@ -33,6 +34,8 @@ export default function AddProductForm({ onClose, onRefetch }: AddProductFormPro
   function updateField(field: string, value: string | number | boolean) {
     setForm(prev => ({ ...prev, [field]: value }));
   }
+
+  const isBundle = form.category === 'Bundle' || form.category === 'Book Box';
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -45,7 +48,9 @@ export default function AddProductForm({ onClose, onRefetch }: AddProductFormPro
         books_purchased: 0,
         bundles_purchased: 0,
         purchased_via_bundles: 0,
-        bundles_inventory: 0,
+        bundles_inventory: isBundle ? form.bundles_inventory : 0,
+        book_stock: isBundle ? 0 : form.book_stock,
+        book_inventory: isBundle ? 0 : form.book_inventory,
         six_month_book_sales: 0,
         six_month_bundle_sales: 0,
         csv_avg_daily: 0,
@@ -53,33 +58,33 @@ export default function AddProductForm({ onClose, onRefetch }: AddProductFormPro
       });
       onRefetch();
       onClose();
-    } catch (err: any) {
-      setError(err.message || 'Failed to add product.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to add product.');
     }
     setSaving(false);
-  }
-
-  function Field({ label, field, type = 'text' }: { label: string; field: string; type?: string }) {
-    return (
-      <div>
-        <label className="block text-xs text-slate-500 mb-1">{label}</label>
-        <input
-          type={type}
-          value={(form as any)[field]}
-          onChange={e => updateField(field, type === 'number' ? Number(e.target.value) : e.target.value)}
-          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-400"
-        />
-      </div>
-    );
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2">
-          <Field label="Product Name *" field="name" />
+          <label className="block text-xs text-slate-500 mb-1">Product Name *</label>
+          <input
+            type="text"
+            value={form.name}
+            onChange={e => updateField('name', e.target.value)}
+            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-400"
+          />
         </div>
-        <Field label="SKU" field="sku" />
+        <div>
+          <label className="block text-xs text-slate-500 mb-1">SKU</label>
+          <input
+            type="text"
+            value={form.sku}
+            onChange={e => updateField('sku', e.target.value)}
+            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-400"
+          />
+        </div>
         <div>
           <label className="block text-xs text-slate-500 mb-1">Category</label>
           <select
@@ -95,30 +100,46 @@ export default function AddProductForm({ onClose, onRefetch }: AddProductFormPro
       <div className="border-t border-slate-200 pt-4">
         <p className="text-sm font-medium text-slate-700 mb-3">Pricing</p>
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Base Price" field="base_price" type="number" />
-          <Field label="TT Shop Price" field="tt_shop_price" type="number" />
-          <Field label="Production Cost" field="production_cost" type="number" />
-          <Field label="Shipping Cost" field="shipping_cost" type="number" />
-          <Field label="Shipping Supplies" field="shipping_supplies_cost" type="number" />
-          <Field label="PA Costs" field="pa_costs" type="number" />
-          <Field label="Handling Fee Add-On" field="handling_fee_add_on" type="number" />
-          <Field label="Free Shipping" field="free_shipping" type="number" />
+          <NumberField label="Base Price" value={form.base_price} onChange={v => updateField('base_price', v)} />
+          <NumberField label="TT Shop Price" value={form.tt_shop_price} onChange={v => updateField('tt_shop_price', v)} />
+          <NumberField label="Production Cost" value={form.production_cost} onChange={v => updateField('production_cost', v)} />
+          <NumberField label="Shipping Cost" value={form.shipping_cost} onChange={v => updateField('shipping_cost', v)} />
+          <NumberField label="Shipping Supplies" value={form.shipping_supplies_cost} onChange={v => updateField('shipping_supplies_cost', v)} />
+          <NumberField label="PA Costs" value={form.pa_costs} onChange={v => updateField('pa_costs', v)} />
+          <NumberField label="Handling Fee Add-On" value={form.handling_fee_add_on} onChange={v => updateField('handling_fee_add_on', v)} />
+          <NumberField label="Free Shipping" value={form.free_shipping} onChange={v => updateField('free_shipping', v)} />
         </div>
       </div>
 
       <div className="border-t border-slate-200 pt-4">
-        <p className="text-sm font-medium text-slate-700 mb-3">Inventory</p>
+        <p className="text-sm font-medium text-slate-700 mb-3">
+          {isBundle ? 'Bundle Inventory' : 'Inventory'}
+        </p>
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Starting Stock" field="book_stock" type="number" />
-          <Field label="Book Inventory" field="book_inventory" type="number" />
-          <Field label="Lead Time (days)" field="lead_time" type="number" />
+          {isBundle ? (
+            <NumberField label="Starting Bundle Inventory" value={form.bundles_inventory} onChange={v => updateField('bundles_inventory', v)} />
+          ) : (
+            <>
+              <NumberField label="Starting Stock" value={form.book_stock} onChange={v => updateField('book_stock', v)} />
+              <NumberField label="Book Inventory" value={form.book_inventory} onChange={v => updateField('book_inventory', v)} />
+            </>
+          )}
+          <NumberField label="Lead Time (days)" value={form.lead_time} onChange={v => updateField('lead_time', v)} />
         </div>
       </div>
 
-      {form.category === 'Bundle' && (
+      {isBundle && (
         <div className="border-t border-slate-200 pt-4">
-          <p className="text-sm font-medium text-slate-700 mb-3">Bundle</p>
-          <Field label="Books in Bundle (comma-separated)" field="books_in_bundle" />
+          <p className="text-sm font-medium text-slate-700 mb-3">Bundle Contents</p>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Books in Bundle (comma-separated)</label>
+            <input
+              type="text"
+              value={form.books_in_bundle}
+              onChange={e => updateField('books_in_bundle', e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-400"
+            />
+          </div>
         </div>
       )}
 
@@ -146,5 +167,19 @@ export default function AddProductForm({ onClose, onRefetch }: AddProductFormPro
         </button>
       </div>
     </form>
+  );
+}
+
+function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  return (
+    <div>
+      <label className="block text-xs text-slate-500 mb-1">{label}</label>
+      <input
+        type="number"
+        value={value}
+        onChange={e => onChange(Number(e.target.value))}
+        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-400"
+      />
+    </div>
   );
 }
