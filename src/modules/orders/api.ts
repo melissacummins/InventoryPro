@@ -70,14 +70,12 @@ export async function deleteShopifySettings(): Promise<void> {
   if (error) throw error;
 }
 
-// ---- Shopify API Proxy (via Edge Function) ----
+// ---- Shopify API Proxy (via Database Function) ----
 
 async function callShopifyProxy(action: string, params?: Record<string, unknown>) {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) throw new Error('Not authenticated');
-
-  const { data, error } = await supabase.functions.invoke('shopify-proxy', {
-    body: { action, params },
+  const { data, error } = await supabase.rpc('shopify_proxy', {
+    action,
+    params: params || {},
   });
 
   if (error) throw new Error(error.message || 'Shopify proxy call failed');
