@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
   LogOut, BookOpen, Package, BarChart3, DollarSign,
-  Sparkles, Wallet, Search, Home, Menu, X, ChevronRight, PanelLeftClose, PanelLeftOpen, Megaphone
+  Sparkles, Wallet, Search, Home, Menu, X, ChevronRight, PanelLeftClose, PanelLeftOpen, Megaphone, ShoppingCart
 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 
@@ -16,6 +16,7 @@ const modules = [
   { name: 'Marketing', path: '/marketing', icon: Megaphone, color: 'text-pink-400' },
   { name: 'FinStream', path: '/finstream', icon: Wallet, color: 'text-cyan-400' },
   { name: 'KDP Optimizer', path: '/kdp-optimizer', icon: Search, color: 'text-rose-400' },
+  { name: 'Orders', path: '/orders', icon: ShoppingCart, color: 'text-indigo-400' },
 ];
 
 export default function Layout({ children }: { children: ReactNode }) {

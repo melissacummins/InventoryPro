@@ -11,6 +11,7 @@ import AdAlchemyModule from './modules/ad-alchemy/AdAlchemyModule';
 import MarketingModule from './modules/marketing/MarketingModule';
 import FinStreamModule from './modules/finstream/FinStreamModule';
 import KDPOptimizerModule from './modules/kdp-optimizer/KDPOptimizerModule';
+import OrdersModule from './modules/orders/OrdersModule';
 
 function ProtectedRoutes() {
   const { user, loading } = useAuth();
@@ -42,6 +43,7 @@ function ProtectedRoutes() {
         <Route path="marketing" element={<MarketingModule />} />
         <Route path="finstream" element={<FinStreamModule />} />
         <Route path="kdp-optimizer" element={<KDPOptimizerModule />} />
+        <Route path="orders" element={<OrdersModule />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>

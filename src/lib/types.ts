@@ -550,6 +550,81 @@ export interface SocialMediaPost {
 }
 
 // ============================================
+// SHOPIFY ORDERS MODULE
+// ============================================
+export interface ShopifySettings {
+  id: string;
+  user_id: string;
+  store_url: string;
+  access_token: string;
+  default_location_id: string | null;
+  default_location_name: string | null;
+  last_sync_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ShopifyLocation {
+  id: number;
+  name: string;
+  address1: string | null;
+  city: string | null;
+  province: string | null;
+  country: string | null;
+  active: boolean;
+}
+
+export interface ShopifyLineItem {
+  id: number;
+  title: string;
+  sku: string;
+  quantity: number;
+  price: string;
+  variant_title: string | null;
+  product_id: number | null;
+  variant_id: number | null;
+}
+
+export interface ShopifyOrder {
+  id: string;
+  user_id: string;
+  shopify_order_id: string;
+  order_number: string;
+  order_date: string;
+  customer_name: string;
+  fulfillment_status: string;
+  financial_status: string;
+  location_id: string | null;
+  location_name: string | null;
+  total_price: number;
+  line_items: ShopifyLineItem[];
+  synced_at: string;
+}
+
+export interface ShopifySyncLog {
+  id: string;
+  user_id: string;
+  sync_type: string;
+  status: string;
+  orders_synced: number;
+  date_range_start: string | null;
+  date_range_end: string | null;
+  location_name: string | null;
+  error_message: string | null;
+  created_at: string;
+}
+
+export interface SkuMatch {
+  sku: string;
+  productName: string;
+  productId: string;
+  category: string;
+  totalQuantity: number;
+  orderCount: number;
+  isBundle: boolean;
+}
+
+// ============================================
 // MODULE DEFINITIONS
 // ============================================
 export interface ModuleDefinition {

@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
   Package, BarChart3, BookOpen, DollarSign,
-  Sparkles, Wallet, Search, ArrowRight, Megaphone
+  Sparkles, Wallet, Search, ArrowRight, Megaphone, ShoppingCart
 } from 'lucide-react';
 
 const modules = [
@@ -69,6 +69,14 @@ const modules = [
     icon: Search,
     gradient: 'from-rose-500 to-rose-600',
     shadow: 'shadow-rose-500/25',
+  },
+  {
+    name: 'Orders',
+    description: 'Pull Shopify orders by fulfillment location, match by SKU, and update product purchase counts.',
+    path: '/orders',
+    icon: ShoppingCart,
+    gradient: 'from-indigo-500 to-indigo-600',
+    shadow: 'shadow-indigo-500/25',
   },
 ];
 
