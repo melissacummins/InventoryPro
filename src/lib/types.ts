@@ -70,11 +70,14 @@ export interface PurchaseOrder {
   product_id: string;
   product_name: string;
   quantity: number;
+  actual_quantity: number | null;
   order_date: string;
   expected_dispatch: string;
   expected_arrival: string;
   actual_arrival: string | null;
   status: 'pending' | 'arrived';
+  po_number: string | null;
+  notes: string;
   created_at: string;
 }
 

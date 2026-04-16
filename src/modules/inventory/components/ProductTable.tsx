@@ -8,11 +8,12 @@ interface ProductTableProps {
   products: Product[];
   onRefetch: () => void;
   onAdjustStock: (product: Product) => void;
+  pendingStock?: Map<string, number>;
 }
 
 type SortKey = 'name' | 'category' | 'base_price' | 'netMarginPercent' | 'book_inventory' | 'status';
 
-export default function ProductTable({ products, onRefetch, onAdjustStock }: ProductTableProps) {
+export default function ProductTable({ products, onRefetch, onAdjustStock, pendingStock }: ProductTableProps) {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -309,6 +310,9 @@ export default function ProductTable({ products, onRefetch, onAdjustStock }: Pro
                       {(product.category === 'Bundle' || product.category === 'Book Box')
                         ? product.metrics.bundlesInventory
                         : product.metrics.bookInventory}
+                      {pendingStock?.get(product.id) ? (
+                        <span className="text-xs font-normal text-amber-600 ml-1">(+{pendingStock.get(product.id)} incoming)</span>
+                      ) : null}
                     </td>
                     <td className="px-3 py-3"><StatusBadge status={product.metrics.status} /></td>
                     <td className="px-3 py-3 text-xs text-slate-500">{product.metrics.action}</td>

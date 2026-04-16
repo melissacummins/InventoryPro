@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { LayoutDashboard, List, Plus, Download, ShoppingCart, Settings } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { LayoutDashboard, List, Plus, Download, ShoppingCart, Settings, Truck } from 'lucide-react';
 import { useProducts } from './hooks/useProducts';
 import { useShopifySettings } from '../orders/hooks/useShopifyOrders';
 import Dashboard from './components/Dashboard';
@@ -7,12 +7,14 @@ import ProductTable from './components/ProductTable';
 import AddProductForm from './components/AddProductForm';
 import StockModal from './components/StockModal';
 import MigrationTool from './components/MigrationTool';
+import PurchaseOrders from './components/PurchaseOrders';
 import OrdersDashboard from '../orders/components/OrdersDashboard';
 import ShopifySetup from '../orders/components/ShopifySetup';
 import Modal from '../../components/Modal';
+import { getPendingByProduct } from './api/purchaseOrders';
 import type { Product } from '../../lib/types';
 
-type Tab = 'dashboard' | 'products' | 'orders';
+type Tab = 'dashboard' | 'products' | 'purchase-orders' | 'orders';
 
 export default function InventoryModule() {
   const { products, loading, refetch } = useProducts();
@@ -22,6 +24,14 @@ export default function InventoryModule() {
   const [stockProduct, setStockProduct] = useState<Product | null>(null);
   const [showMigration, setShowMigration] = useState(false);
   const [showShopifySettings, setShowShopifySettings] = useState(false);
+  const [pendingStock, setPendingStock] = useState<Map<string, number>>(new Map());
+
+  const fetchPending = useCallback(async () => {
+    const pending = await getPendingByProduct();
+    setPendingStock(pending);
+  }, []);
+
+  useEffect(() => { fetchPending(); }, [fetchPending]);
 
   if (loading) {
     return (
@@ -53,12 +63,20 @@ export default function InventoryModule() {
             <List className="w-4 h-4" /> Products
           </button>
           <button
+            onClick={() => setTab('purchase-orders')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              tab === 'purchase-orders' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <Truck className="w-4 h-4" /> Purchase Orders
+          </button>
+          <button
             onClick={() => setTab('orders')}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               tab === 'orders' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
             }`}
           >
-            <ShoppingCart className="w-4 h-4" /> Orders
+            <ShoppingCart className="w-4 h-4" /> Shopify
           </button>
         </div>
 
@@ -71,7 +89,7 @@ export default function InventoryModule() {
               <Settings className="w-4 h-4" /> Shopify Settings
             </button>
           )}
-          {tab !== 'orders' && (
+          {(tab === 'dashboard' || tab === 'products') && (
             <>
               <button
                 onClick={() => setShowMigration(true)}
@@ -103,6 +121,13 @@ export default function InventoryModule() {
           products={products}
           onRefetch={refetch}
           onAdjustStock={setStockProduct}
+          pendingStock={pendingStock}
+        />
+      )}
+      {tab === 'purchase-orders' && (
+        <PurchaseOrders
+          products={products}
+          onInventoryChanged={() => { refetch(); fetchPending(); }}
         />
       )}
       {tab === 'orders' && (
