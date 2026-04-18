@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { Download, Upload, AlertTriangle, RefreshCw } from 'lucide-react';
 import { AppDataBackup } from '../types';
+import FirebaseImport from './FirebaseImport';
 
 interface SettingsProps {
   onBackup: () => AppDataBackup;
@@ -63,6 +64,8 @@ export const Settings: React.FC<SettingsProps> = ({ onBackup, onRestore, onClear
 
   return (
     <div className="max-w-2xl mx-auto space-y-8 animate-fade-in">
+      <FirebaseImport />
+
       <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100">
         <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
           <RefreshCw className="w-6 h-6 mr-2 text-gray-700" />
