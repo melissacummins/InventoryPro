@@ -1,0 +1,132 @@
+import React, { useRef } from 'react';
+import { Download, Upload, AlertTriangle, RefreshCw } from 'lucide-react';
+import { AppDataBackup } from '../types';
+
+interface SettingsProps {
+  onBackup: () => AppDataBackup;
+  onRestore: (data: AppDataBackup) => void;
+  onClear: () => void;
+}
+
+export const Settings: React.FC<SettingsProps> = ({ onBackup, onRestore, onClear }) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleDownload = () => {
+    const data = onBackup();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `profittrack_backup_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        const data = JSON.parse(text) as AppDataBackup;
+        
+        // Basic validation
+        if (!data.dailyRecords || !data.orderSources) {
+          throw new Error("Invalid backup file format");
+        }
+        
+        if (confirm(`Found ${data.dailyRecords.length} records and ${data.orderSources.length} sources. Restore and overwrite current data?`)) {
+          onRestore(data);
+          alert('Data restored successfully!');
+        }
+      } catch (err) {
+        alert('Failed to parse backup file. Please ensure it is a valid JSON file exported from ProfitTrack.');
+        console.error(err);
+      }
+    };
+    reader.readAsText(file);
+    // Reset input
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleClear = () => {
+    if (confirm("WARNING: This will permanently delete ALL data. This cannot be undone. Are you sure?")) {
+      if (confirm("Double check: Are you absolutely sure?")) {
+        onClear();
+      }
+    }
+  };
+
+  return (
+    <div className="max-w-2xl mx-auto space-y-8 animate-fade-in">
+      <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100">
+        <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
+          <RefreshCw className="w-6 h-6 mr-2 text-gray-700" />
+          Data Management
+        </h2>
+
+        <div className="space-y-8">
+          {/* Backup Section */}
+          <div className="pb-8 border-b border-gray-100">
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Backup Data</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Download a complete copy of your financial records, notes, order configurations, and history to your computer.
+            </p>
+            <button 
+              onClick={handleDownload}
+              className="flex items-center px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors font-medium"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Download Backup (.json)
+            </button>
+          </div>
+
+          {/* Restore Section */}
+          <div className="pb-8 border-b border-gray-100">
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Restore Data</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Import a previously saved backup file. <span className="text-red-600 font-medium">Warning: This will overwrite your current data.</span>
+            </p>
+            <div className="flex items-center">
+               <input 
+                  type="file" 
+                  ref={fileInputRef}
+                  accept=".json"
+                  onChange={handleFileChange}
+                  className="hidden" 
+               />
+               <button 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium shadow-sm"
+               >
+                  <Upload className="w-4 h-4 mr-2" />
+                  Select File to Restore
+               </button>
+            </div>
+          </div>
+
+          {/* Danger Zone */}
+          <div>
+            <h3 className="text-lg font-medium text-red-600 mb-2 flex items-center">
+              <AlertTriangle className="w-5 h-5 mr-2" />
+              Danger Zone
+            </h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Permanently delete all application data.
+            </p>
+            <button 
+              onClick={handleClear}
+              className="px-4 py-2 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 transition-colors font-medium text-sm"
+            >
+              Clear All Data
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};

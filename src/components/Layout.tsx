@@ -11,7 +11,7 @@ const modules = [
   { name: 'Inventory', path: '/inventory', icon: Package, color: 'text-blue-400' },
   { name: 'Cross-Sell Analyzer', path: '/cross-sell', icon: BarChart3, color: 'text-emerald-400' },
   { name: 'Book Tracker', path: '/book-tracker', icon: BookOpen, color: 'text-purple-400' },
-  { name: 'Profit Track', path: '/profit-track', icon: DollarSign, color: 'text-green-400' },
+  { name: 'Profit', path: '/profit-track', icon: DollarSign, color: 'text-green-400' },
   { name: 'Ad Alchemy', path: '/ad-alchemy', icon: Sparkles, color: 'text-orange-400' },
   { name: 'Marketing', path: '/marketing', icon: Megaphone, color: 'text-pink-400' },
   { name: 'FinStream', path: '/finstream', icon: Wallet, color: 'text-cyan-400' },

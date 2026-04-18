@@ -31,7 +31,7 @@ const modules = [
     shadow: 'shadow-purple-500/25',
   },
   {
-    name: 'Profit Track',
+    name: 'Profit',
     description: 'Log daily ad spend and royalties across Amazon, Shopify, Kobo, and more.',
     path: '/profit-track',
     icon: DollarSign,
