@@ -34,6 +34,27 @@ const DEFAULT_SOURCE_NAMES: Array<Omit<OrderSource, 'id'>> = [
   { name: 'Shopify Single Products', multiplier: 1 },
 ];
 
+// Supabase caps a single select() at 1000 rows. For tables that can grow
+// beyond that (e.g. daily_records over multiple years), we need to page
+// through the results manually.
+const PAGE_SIZE = 1000;
+async function fetchAll(table: string): Promise<{ data: any[] | null }> {
+  const all: any[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await supabase
+      .from(table)
+      .select('*')
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) return { data: null };
+    if (!data || data.length === 0) break;
+    all.push(...data);
+    if (data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+  return { data: all };
+}
+
 function diffById<T extends { id?: string }>(prev: T[], next: T[]) {
   const prevById = new Map<string, T>();
   prev.forEach((r) => r.id && prevById.set(r.id, r));
@@ -124,13 +145,13 @@ export function useProfitData() {
         booksRes,
         metricsRes,
       ] = await Promise.all([
-        supabase.from('daily_records').select('*'),
-        supabase.from('weekly_notes').select('*'),
-        supabase.from('order_sources').select('*'),
-        supabase.from('monthly_orders').select('*'),
-        supabase.from('monthly_page_reads').select('*'),
-        supabase.from('book_products').select('*'),
-        supabase.from('book_daily_metrics').select('*'),
+        fetchAll('daily_records'),
+        fetchAll('weekly_notes'),
+        fetchAll('order_sources'),
+        fetchAll('monthly_orders'),
+        fetchAll('monthly_page_reads'),
+        fetchAll('book_products'),
+        fetchAll('book_daily_metrics'),
       ]);
 
       if (cancelled) return;
