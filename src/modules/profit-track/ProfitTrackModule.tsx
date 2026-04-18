@@ -23,6 +23,7 @@ import type {
   ViewMode,
   AppDataBackup,
   BookDailyMetric,
+  OrderSource,
 } from './types';
 
 const VIEW_TITLES: Record<ViewMode, { title: string; subtitle: string }> = {
@@ -100,6 +101,28 @@ export default function ProfitTrackModule() {
     setMonthlyOrders(migrated);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading]);
+
+  // Bundle-as-source sync: every bundle book should have a matching order
+  // source so the user can enter monthly units sold for it. Early backups
+  // (and imports from them) didn't serialize bundle sources, so we derive
+  // them on load. Multiplier defaults to the number of books in the bundle.
+  useEffect(() => {
+    if (loading) return;
+    const existingNames = new Set(orderSources.map((s) => s.name));
+    const missing = books.filter(
+      (b) => b.isBundle && !existingNames.has(b.title),
+    );
+    if (missing.length === 0) return;
+    const additions: OrderSource[] = missing.map((b) => ({
+      id: crypto.randomUUID(),
+      name: b.title,
+      multiplier: (b.includedBookIds || []).length || 1,
+      isSystem: false,
+      isArchived: false,
+    }));
+    setOrderSources([...orderSources, ...additions]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, books]);
 
   const handleAddRecord = (record: DailyRecord) => {
     setDailyRecords((prev) => [...prev, record]);

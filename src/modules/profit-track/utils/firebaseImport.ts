@@ -272,6 +272,27 @@ function stageBackup(backup: AppDataBackup, state: CurrentState): Staged {
     state.existingBookTitleLangs.add(key);
   }
 
+  // --- Derive missing order sources from bundle books. The original
+  // ProfitTrack workflow treated each bundle as both a book AND an order
+  // source (so monthly units sold could be entered per-bundle with a
+  // multiplier = number of books in the bundle). The backup format only
+  // serializes bundles as books, so without this step the user ends up
+  // with bundles in Book ROI but no way to log monthly orders for them.
+  for (const b of inputBooks) {
+    if (!b.isBundle) continue;
+    if (state.sourceNameToId.has(b.title)) continue;
+    const newId = crypto.randomUUID();
+    state.sourceNameToId.set(b.title, newId);
+    sourcesToInsert.push({
+      id: newId,
+      user_id: userId,
+      name: b.title,
+      multiplier: (b.includedBookIds || []).length || 1,
+      is_system: false,
+      is_archived: false,
+    });
+  }
+
   // --- Monthly orders: skip rows where (month_key, mapped source_id) already exists.
   const ordersToInsert: any[] = [];
   let ordersSkipped = 0;
