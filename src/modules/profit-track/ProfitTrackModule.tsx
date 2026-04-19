@@ -351,12 +351,14 @@ export default function ProfitTrackModule() {
           monthlyOrders={monthlyOrders}
           monthlyPageReads={monthlyPageReads}
           sources={orderSources}
+          categories={categories}
         />
       )}
       {view === 'weekly' && (
         <WeeklySummary
           data={dailyRecords}
           notes={weeklyNotes}
+          categories={categories}
           onUpdateNote={handleUpdateNote}
         />
       )}
@@ -366,6 +368,7 @@ export default function ProfitTrackModule() {
           sources={orderSources}
           monthlyOrders={monthlyOrders}
           monthlyPageReads={monthlyPageReads}
+          categories={categories}
         />
       )}
       {view === 'orders' && (

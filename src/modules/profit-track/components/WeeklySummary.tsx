@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { DailyRecord, WeeklyNote } from '../types';
-import { groupDataByWeek, formatCurrency, formatPercent } from '../utils/calculations';
+import { DailyRecord, WeeklyNote, ProfitCategory } from '../types';
+import { groupDataByWeek, formatCurrency } from '../utils/calculations';
 import { ChevronDown, ChevronUp, FileText } from 'lucide-react';
 
 interface WeeklySummaryProps {
   data: DailyRecord[];
   notes: WeeklyNote[];
+  categories: ProfitCategory[];
   onUpdateNote: (weekStartDate: string, content: string) => void;
 }
 
@@ -46,11 +47,11 @@ const AutoResizeTextarea = ({ value, onChange, placeholder, minHeight = '38px', 
   );
 };
 
-export const WeeklySummary: React.FC<WeeklySummaryProps> = ({ data, notes, onUpdateNote }) => {
+export const WeeklySummary: React.FC<WeeklySummaryProps> = ({ data, notes, categories, onUpdateNote }) => {
   const [selectedYear, setSelectedYear] = useState<string>('All');
   const [expandedWeeks, setExpandedWeeks] = useState<Set<string>>(new Set());
 
-  const weeklyData = useMemo(() => groupDataByWeek(data), [data]);
+  const weeklyData = useMemo(() => groupDataByWeek(data, categories), [data, categories]);
   
   // Extract unique years
   const years = useMemo(() => {
@@ -111,11 +112,7 @@ export const WeeklySummary: React.FC<WeeklySummaryProps> = ({ data, notes, onUpd
                 <th className="px-2 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider border-r border-gray-200">Week</th>
                 <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start</th>
                 <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">End</th>
-                
-                <th className="px-2 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">FB Spend</th>
-                <th className="px-2 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Traffic</th>
-                <th className="px-2 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">Misc</th>
-                
+
                 <th className="px-2 py-3 text-right text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200 bg-gray-100">Total Spend</th>
                 
                 <th className="px-2 py-3 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Revenue</th>
@@ -149,16 +146,6 @@ export const WeeklySummary: React.FC<WeeklySummaryProps> = ({ data, notes, onUpd
                         </td>
                         <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-900 border-r border-gray-200 align-middle">
                         {fmtDate(end)}
-                        </td>
-
-                        <td className="px-2 py-3 whitespace-nowrap text-sm text-right text-gray-600 align-middle">
-                        {row.fbAds > 0 ? formatCurrency(row.fbAds) : '-'}
-                        </td>
-                        <td className="px-2 py-3 whitespace-nowrap text-sm text-right text-gray-600 align-middle">
-                        {row.trafficAds > 0 ? formatCurrency(row.trafficAds) : '-'}
-                        </td>
-                        <td className="px-2 py-3 whitespace-nowrap text-sm text-right text-gray-600 border-r border-gray-200 align-middle">
-                        {row.miscAds > 0 ? formatCurrency(row.miscAds) : '-'}
                         </td>
 
                         <td className="px-2 py-3 whitespace-nowrap text-sm text-right font-medium text-red-600 border-r border-gray-200 bg-gray-50/50 align-middle">
@@ -195,7 +182,7 @@ export const WeeklySummary: React.FC<WeeklySummaryProps> = ({ data, notes, onUpd
                     {/* Expandable Details Row */}
                     {isExpanded && (
                         <tr className="bg-blue-50/30 animate-fade-in">
-                            <td colSpan={11} className="px-4 py-4 border-b border-blue-100">
+                            <td colSpan={8} className="px-4 py-4 border-b border-blue-100">
                                 <div className="max-w-4xl mx-auto">
                                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
                                         Notes for Week {row.weekNumber} ({fmtDate(start)} - {fmtDate(end)})

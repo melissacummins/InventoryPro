@@ -1,11 +1,12 @@
 import React, { useMemo } from 'react';
-import { 
+import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   AreaChart, Area, PieChart, Pie, Cell
 } from 'recharts';
 import { DollarSign, TrendingUp, Activity, PieChart as PieChartIcon, BookOpen, Layers } from 'lucide-react';
-import { DailyRecord, MonthlyOrderEntry, MonthlyPageReads, OrderSource } from '../types';
+import { DailyRecord, MonthlyOrderEntry, MonthlyPageReads, OrderSource, ProfitCategory } from '../types';
 import { calculateMetrics, formatCurrency, formatPercent, formatNumber, groupDataByYear } from '../utils/calculations';
+import { getCategoryValue } from '../utils/defaultCategories';
 import { SummaryCard } from './SummaryCard';
 
 interface DashboardProps {
@@ -13,17 +14,32 @@ interface DashboardProps {
   monthlyOrders: MonthlyOrderEntry[];
   monthlyPageReads: MonthlyPageReads[];
   sources: OrderSource[];
+  categories: ProfitCategory[];
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ data, monthlyOrders, monthlyPageReads, sources }) => {
-  
+// Stable fallback palette when categories don't have an assigned color. Hand-
+// picked to match the original brand colors for the default revenue streams.
+const DEFAULT_COLORS: Record<string, string> = {
+  Amazon: '#FF9900',
+  Shopify: '#96bf48',
+  Kobo: '#bf0000',
+  'Kobo Plus': '#ff4d4d',
+  Draft2Digital: '#666666',
+  'Google Play': '#4285F4',
+  'Publish Drive': '#a855f7',
+  Streetlib: '#0ea5e9',
+};
+const FALLBACK_PALETTE = ['#6366f1', '#8b5cf6', '#ec4899', '#14b8a6', '#f59e0b', '#84cc16', '#06b6d4', '#f97316'];
+
+export const Dashboard: React.FC<DashboardProps> = ({ data, monthlyOrders, monthlyPageReads, sources, categories }) => {
+
   // --- 1. Top Card Aggregates ---
   const aggregates = useMemo(() => {
     let totalRev = 0;
     let totalSpend = 0;
-    
+
     data.forEach(record => {
-      const metrics = calculateMetrics(record);
+      const metrics = calculateMetrics(record, categories);
       totalRev += metrics.totalRevenue;
       totalSpend += metrics.totalAdSpend;
     });
@@ -33,7 +49,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, monthlyOrders, month
     const margin = totalRev > 0 ? (net / totalRev) : 0;
 
     return { totalRev, totalSpend, net, roas, margin };
-  }, [data]);
+  }, [data, categories]);
 
   const volumeAggregates = useMemo(() => {
     const totalReads = monthlyPageReads.reduce((sum, entry) => sum + entry.reads, 0);
@@ -49,39 +65,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, monthlyOrders, month
   // --- 2. Chart Data: Yearly Financials ---
   const yearlyChartData = useMemo(() => {
     // Reuse the helper but we only need financial parts for this chart mainly
-    const grouped = groupDataByYear(data, sources, monthlyOrders, monthlyPageReads);
+    const grouped = groupDataByYear(data, sources, monthlyOrders, monthlyPageReads, categories);
     // Sort ascending for chart (Oldest year -> Newest year)
     return grouped.sort((a, b) => parseInt(a.year) - parseInt(b.year));
-  }, [data, sources, monthlyOrders, monthlyPageReads]);
+  }, [data, sources, monthlyOrders, monthlyPageReads, categories]);
 
-  // --- 3. Chart Data: Platform Breakdown ---
+  // --- 3. Chart Data: Platform Breakdown (all revenue categories with data) ---
   const platformData = useMemo(() => {
-    const breakdown = {
-      Shopify: 0,
-      Amazon: 0,
-      Draft2Digital: 0,
-      GooglePlay: 0,
-      Kobo: 0, // Kobo + Kobo Plus
-    };
-
-    data.forEach(r => {
-      breakdown.Shopify += (r.shopifyRev || 0);
-      breakdown.Amazon += (r.amazonRev || 0);
-      breakdown.Draft2Digital += (r.d2dRev || 0);
-      breakdown.GooglePlay += (r.googleRev || 0);
-      breakdown.Kobo += ((r.koboRev || 0) + (r.koboPlusRev || 0));
-    });
-
-    const result = [
-      { name: 'Amazon', value: breakdown.Amazon, color: '#FF9900' },
-      { name: 'Shopify', value: breakdown.Shopify, color: '#96bf48' },
-      { name: 'Kobo', value: breakdown.Kobo, color: '#bf0000' },
-      { name: 'Draft2Digital', value: breakdown.Draft2Digital, color: '#666666' },
-      { name: 'Google Play', value: breakdown.GooglePlay, color: '#4285F4' },
-    ].filter(i => i.value > 0).sort((a,b) => b.value - a.value);
+    const revenueCategories = categories.filter((c) => c.type === 'revenue');
+    let paletteIdx = 0;
+    const result = revenueCategories
+      .map((cat) => {
+        const total = data.reduce((sum, r) => sum + getCategoryValue(cat, r), 0);
+        const color =
+          DEFAULT_COLORS[cat.name] || FALLBACK_PALETTE[paletteIdx++ % FALLBACK_PALETTE.length];
+        return { name: cat.name, value: total, color };
+      })
+      .filter((i) => i.value > 0)
+      .sort((a, b) => b.value - a.value);
 
     return result;
-  }, [data]);
+  }, [data, categories]);
 
   if (data.length === 0) {
     return (
