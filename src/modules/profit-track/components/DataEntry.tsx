@@ -1,9 +1,11 @@
 import React, { useState, ChangeEvent, useEffect } from 'react';
-import { DailyRecord } from '../types';
+import { DailyRecord, ProfitCategory } from '../types';
 import { Upload, Plus, CheckCircle, Save, X, FileText, ArrowRight, AlertCircle, ArrowLeft, Loader2 } from 'lucide-react';
+import { getCategoryValue, setCategoryValue } from '../utils/defaultCategories';
 
 interface DataEntryProps {
   existingData?: DailyRecord[];
+  categories: ProfitCategory[];
   onAddRecord: (record: DailyRecord) => void;
   onBulkAdd: (records: DailyRecord[]) => void;
   onBulkMerge?: (records: Partial<DailyRecord>[]) => void;
@@ -12,30 +14,10 @@ interface DataEntryProps {
   onCancelEdit?: () => void;
 }
 
-interface FieldConfig {
-  key: string;
-  label: string;
-  required?: boolean;
-  aliases?: string[];
-}
-
-const FIELD_MAPPING_CONFIG: FieldConfig[] = [
-  { key: 'date', label: 'Date', required: true, aliases: ['Day', 'Time'] },
-  { key: 'pnrAds', label: 'PNR Ads', aliases: ['PNR', 'PNR Spend', 'PNR Ad Spend'] },
-  { key: 'contempAds', label: 'Contemp Ads', aliases: ['Contemp', 'Contemp Spend', 'Contemp Ad Spend'] },
-  { key: 'trafficAds', label: 'Traffic Ads', aliases: ['Traffic', 'Traffic Spend', 'Traffic Ad Spend'] },
-  { key: 'miscAds', label: 'Misc Ads', aliases: ['Misc', 'Misc Spend', 'Other', 'Other Ads'] },
-  { key: 'shopifyRev', label: 'Shopify Revenue', aliases: ['Shopify', 'Shopify Sales'] },
-  { key: 'amazonRev', label: 'Amazon Revenue', aliases: ['Amazon', 'Amazon Sales', 'KDP', 'Kindle', 'Kindle Direct Publishing'] },
-  { key: 'd2dRev', label: 'Draft2Digital Revenue', aliases: ['Draft2Digital', 'D2D', 'Draft 2 Digital'] },
-  { key: 'googleRev', label: 'Google Play Revenue', aliases: ['Google Play', 'Google', 'GooglePlay', 'Google Play Books'] },
-  { key: 'koboRev', label: 'Kobo Revenue', aliases: ['Kobo', 'Rakuten Kobo', 'Kobo Writing Life'] },
-  { key: 'koboPlusRev', label: 'Kobo Plus Revenue', aliases: ['Kobo Plus', 'KoboPlus'] },
-];
-
-export const DataEntry: React.FC<DataEntryProps> = ({ 
+export const DataEntry: React.FC<DataEntryProps> = ({
   existingData = [],
-  onAddRecord, 
+  categories,
+  onAddRecord,
   onBulkAdd,
   onBulkMerge,
   editingRecord,
@@ -43,8 +25,14 @@ export const DataEntry: React.FC<DataEntryProps> = ({
   onCancelEdit
 }) => {
   const [activeTab, setActiveTab] = useState<'manual' | 'csv'>('manual');
-  
-  // CSV Import State
+
+  const visibleCategories = categories
+    .filter((c) => c.isVisible)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+  const adCategories = visibleCategories.filter((c) => c.type === 'ad');
+  const revenueCategories = visibleCategories.filter((c) => c.type === 'revenue');
+
+  // CSV Import State — targetCategory is a category id (from profit_categories)
   const [targetCategory, setTargetCategory] = useState<string>('');
   
   // Manual Entry State
@@ -98,10 +86,11 @@ export const DataEntry: React.FC<DataEntryProps> = ({
               } else {
                   // No record found -> Reset fields to zero for a clean slate
                   setDateMatchId(null);
-                  setFormData(prev => ({
+                  setFormData(() => ({
                       date: currentDate, // Keep the date user selected
                       pnrAds: 0, contempAds: 0, trafficAds: 0, miscAds: 0,
-                      shopifyRev: 0, amazonRev: 0, d2dRev: 0, googleRev: 0, koboRev: 0, koboPlusRev: 0
+                      shopifyRev: 0, amazonRev: 0, d2dRev: 0, googleRev: 0, koboRev: 0, koboPlusRev: 0,
+                      customAmounts: {},
                   }));
               }
           }
@@ -307,11 +296,17 @@ export const DataEntry: React.FC<DataEntryProps> = ({
           return;
       }
 
-      // Convert to Partial<DailyRecord>[]
-      const mergeRecords: Partial<DailyRecord>[] = Object.entries(aggregatedData).map(([date, amount]) => ({
-          date,
-          [targetCategory]: amount
-      }));
+      // Convert to Partial<DailyRecord>[] using setCategoryValue so we write
+      // to the right place (legacy column vs. custom_amounts JSONB).
+      const chosenCategory = categories.find((c) => c.id === targetCategory);
+      if (!chosenCategory) {
+          setErrorMsg("Target category no longer exists. Please re-select.");
+          return;
+      }
+      const mergeRecords: Partial<DailyRecord>[] = Object.entries(aggregatedData).map(
+          ([date, amount]) =>
+              setCategoryValue({ date } as Partial<DailyRecord>, chosenCategory, amount),
+      );
 
       if (onBulkMerge) {
           onBulkMerge(mergeRecords);
@@ -408,89 +403,23 @@ export const DataEntry: React.FC<DataEntryProps> = ({
               )}
             </div>
 
-            {/* Ad Spend Section */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Ad Spend</h3>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 uppercase">PNR Ads</label>
-                <div className="relative mt-1">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <span className="text-gray-500 sm:text-sm">$</span>
-                  </div>
-                  <input type="number" step="0.01" name="pnrAds" placeholder="0.00" value={formData.pnrAds || ''} onChange={handleInputChange} className="pl-7 block w-full border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 border p-2" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 uppercase">Contemp Ads</label>
-                <div className="relative mt-1">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <span className="text-gray-500 sm:text-sm">$</span>
-                  </div>
-                  <input type="number" step="0.01" name="contempAds" placeholder="0.00" value={formData.contempAds || ''} onChange={handleInputChange} className="pl-7 block w-full border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 border p-2" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 uppercase">Traffic Ads</label>
-                <div className="relative mt-1">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <span className="text-gray-500 sm:text-sm">$</span>
-                  </div>
-                  <input type="number" step="0.01" name="trafficAds" placeholder="0.00" value={formData.trafficAds || ''} onChange={handleInputChange} className="pl-7 block w-full border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 border p-2" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 uppercase">Misc Ads</label>
-                <div className="relative mt-1">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <span className="text-gray-500 sm:text-sm">$</span>
-                  </div>
-                  <input type="number" step="0.01" name="miscAds" placeholder="0.00" value={formData.miscAds || ''} onChange={handleInputChange} className="pl-7 block w-full border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 border p-2" />
-                </div>
-              </div>
-            </div>
+            <CategoryFieldGroup
+              title="Ad Spend"
+              categories={adCategories}
+              formData={formData}
+              onChange={(cat, value) =>
+                setFormData((prev) => setCategoryValue(prev, cat, value))
+              }
+            />
 
-            {/* Revenue Section */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Revenue</h3>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 uppercase">Shopify</label>
-                <div className="relative mt-1">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <span className="text-gray-500 sm:text-sm">$</span>
-                  </div>
-                  <input type="number" step="0.01" name="shopifyRev" placeholder="0.00" value={formData.shopifyRev || ''} onChange={handleInputChange} className="pl-7 block w-full border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 border p-2" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 uppercase">Amazon</label>
-                <div className="relative mt-1">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <span className="text-gray-500 sm:text-sm">$</span>
-                  </div>
-                  <input type="number" step="0.01" name="amazonRev" placeholder="0.00" value={formData.amazonRev || ''} onChange={handleInputChange} className="pl-7 block w-full border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 border p-2" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                   <label className="block text-xs font-medium text-gray-500 uppercase">D2D</label>
-                   <input type="number" step="0.01" name="d2dRev" value={formData.d2dRev || ''} onChange={handleInputChange} className="mt-1 block w-full border-gray-300 rounded-md border p-2" placeholder="$" />
-                </div>
-                <div>
-                   <label className="block text-xs font-medium text-gray-500 uppercase">Google Play</label>
-                   <input type="number" step="0.01" name="googleRev" value={formData.googleRev || ''} onChange={handleInputChange} className="mt-1 block w-full border-gray-300 rounded-md border p-2" placeholder="$" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                   <label className="block text-xs font-medium text-gray-500 uppercase">Kobo</label>
-                   <input type="number" step="0.01" name="koboRev" value={formData.koboRev || ''} onChange={handleInputChange} className="mt-1 block w-full border-gray-300 rounded-md border p-2" placeholder="$" />
-                </div>
-                <div>
-                   <label className="block text-xs font-medium text-gray-500 uppercase">Kobo Plus</label>
-                   <input type="number" step="0.01" name="koboPlusRev" value={formData.koboPlusRev || ''} onChange={handleInputChange} className="mt-1 block w-full border-gray-300 rounded-md border p-2" placeholder="$" />
-                </div>
-              </div>
-            </div>
+            <CategoryFieldGroup
+              title="Revenue"
+              categories={revenueCategories}
+              formData={formData}
+              onChange={(cat, value) =>
+                setFormData((prev) => setCategoryValue(prev, cat, value))
+              }
+            />
           </div>
 
           <div className="mt-8 pt-4 border-t flex justify-end">
@@ -526,15 +455,22 @@ export const DataEntry: React.FC<DataEntryProps> = ({
 
                 <div className="mt-6">
                     <label className="block text-sm font-medium text-gray-700 mb-2">Target Category</label>
-                    <select 
-                        value={targetCategory} 
+                    <select
+                        value={targetCategory}
                         onChange={(e) => setTargetCategory(e.target.value)}
                         className="block w-full max-w-md border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2 border"
                     >
                         <option value="">-- Select where this data goes --</option>
-                        {FIELD_MAPPING_CONFIG.filter(f => f.key !== 'date').map(field => (
-                            <option key={field.key} value={field.key}>{field.label}</option>
-                        ))}
+                        <optgroup label="Ad Spend">
+                          {adCategories.map((c) => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="Revenue">
+                          {revenueCategories.map((c) => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </optgroup>
                     </select>
                     <p className="text-xs text-gray-500 mt-1">
                         Example: If uploading a Facebook Ads report for your Contemporary books, select "Contemp Ads".
@@ -593,7 +529,7 @@ export const DataEntry: React.FC<DataEntryProps> = ({
              <div className="flex items-start">
                <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5 mr-2" />
                <p className="text-sm text-blue-800">
-                 Map the Date and Amount columns for your {FIELD_MAPPING_CONFIG.find(f => f.key === targetCategory)?.label || 'selected category'} report. Data will be summed by date.
+                 Map the Date and Amount columns for your {categories.find((c) => c.id === targetCategory)?.name || 'selected category'} report. Data will be summed by date.
                </p>
              </div>
            </div>
@@ -642,6 +578,62 @@ export const DataEntry: React.FC<DataEntryProps> = ({
            </div>
         </div>
       )}
+    </div>
+  );
+};
+
+interface CategoryFieldGroupProps {
+  title: string;
+  categories: ProfitCategory[];
+  formData: Partial<DailyRecord>;
+  onChange: (category: ProfitCategory, value: number) => void;
+}
+
+const CategoryFieldGroup: React.FC<CategoryFieldGroupProps> = ({
+  title,
+  categories,
+  formData,
+  onChange,
+}) => {
+  if (categories.length === 0) {
+    return (
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">{title}</h3>
+        <p className="text-sm text-gray-400 italic">
+          All {title.toLowerCase()} categories are hidden. Go to Settings to show some.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-4">
+      <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">{title}</h3>
+      {categories.map((cat) => {
+        const value = getCategoryValue(cat, formData) || 0;
+        return (
+          <div key={cat.id}>
+            <label className="block text-xs font-medium text-gray-500 uppercase">
+              {cat.name}
+            </label>
+            <div className="relative mt-1">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <span className="text-gray-500 sm:text-sm">$</span>
+              </div>
+              <input
+                type="number"
+                step="0.01"
+                placeholder="0.00"
+                value={value === 0 ? '' : value}
+                onChange={(e) => {
+                  const n = parseFloat(e.target.value);
+                  onChange(cat, Number.isFinite(n) ? n : 0);
+                }}
+                className="pl-7 block w-full border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 border p-2"
+              />
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 };

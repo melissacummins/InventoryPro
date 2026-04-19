@@ -144,9 +144,16 @@ export default function ProfitTrackModule() {
         if (!record.date) return;
         const existingIndex = next.findIndex((r) => r.date === record.date);
         if (existingIndex >= 0) {
+          // Deep-merge customAmounts so multiple CSV imports into different
+          // custom categories on the same date accumulate instead of clobber.
+          const mergedCustom = {
+            ...(next[existingIndex].customAmounts || {}),
+            ...(record.customAmounts || {}),
+          };
           next[existingIndex] = {
             ...next[existingIndex],
             ...record,
+            customAmounts: mergedCustom,
             id: next[existingIndex].id,
           };
         } else {
@@ -163,6 +170,7 @@ export default function ProfitTrackModule() {
             googleRev: 0,
             koboRev: 0,
             koboPlusRev: 0,
+            customAmounts: {},
             ...record,
           } as DailyRecord);
         }
@@ -382,6 +390,7 @@ export default function ProfitTrackModule() {
       {view === 'entry' && (
         <DataEntry
           existingData={dailyRecords}
+          categories={categories}
           onAddRecord={handleAddRecord}
           onBulkAdd={handleBulkAdd}
           onBulkMerge={handleBulkMerge}
