@@ -71,6 +71,8 @@ export default function ProfitTrackModule() {
     monthlyPageReads,
     books,
     bookMetrics,
+    categories,
+    uiPrefs,
     setDailyRecords,
     setWeeklyNotes,
     setOrderSources,
@@ -78,6 +80,8 @@ export default function ProfitTrackModule() {
     setMonthlyPageReads,
     setBooks,
     setBookMetrics,
+    setCategories,
+    setUIPrefs,
     clearAll,
   } = useProfitData();
 
@@ -268,7 +272,7 @@ export default function ProfitTrackModule() {
     setBookMetrics(backup.bookMetrics || []);
   };
 
-  const navItems: Array<{
+  const allNavItems: Array<{
     view: ViewMode;
     label: string;
     icon: typeof LayoutDashboard;
@@ -282,6 +286,15 @@ export default function ProfitTrackModule() {
     { view: 'data', label: 'All Records', icon: Table },
     { view: 'settings', label: 'Settings', icon: SettingsIcon },
   ];
+
+  const hiddenTabs = new Set(uiPrefs.hiddenProfitTabs);
+  const navItems = allNavItems.filter((item) => !hiddenTabs.has(item.view));
+
+  // If the active view got hidden via Settings, fall back to dashboard.
+  useEffect(() => {
+    if (hiddenTabs.has(view)) setView('dashboard');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uiPrefs.hiddenProfitTabs.join(',')]);
 
   if (loading) {
     return (
@@ -389,6 +402,10 @@ export default function ProfitTrackModule() {
           onBackup={generateBackup}
           onRestore={restoreBackup}
           onClear={clearAll}
+          categories={categories}
+          onUpdateCategories={setCategories}
+          uiPrefs={uiPrefs}
+          onUpdateUIPrefs={setUIPrefs}
         />
       )}
     </div>
