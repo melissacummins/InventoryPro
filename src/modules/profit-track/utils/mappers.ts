@@ -6,6 +6,9 @@ import type {
   MonthlyPageReads,
   BookProduct,
   BookDailyMetric,
+  ProfitCategory,
+  UserUIPreferences,
+  ProfitTabId,
 } from '../types';
 
 // ---------- DailyRecord ----------
@@ -23,6 +26,7 @@ export function dailyRecordFromDb(row: any): DailyRecord {
     googleRev: Number(row.google_rev) || 0,
     koboRev: Number(row.kobo_rev) || 0,
     koboPlusRev: Number(row.kobo_plus_rev) || 0,
+    customAmounts: normalizeCustomAmounts(row.custom_amounts),
   };
 }
 
@@ -41,7 +45,18 @@ export function dailyRecordToDb(r: DailyRecord, userId: string) {
     google_rev: r.googleRev || 0,
     kobo_rev: r.koboRev || 0,
     kobo_plus_rev: r.koboPlusRev || 0,
+    custom_amounts: r.customAmounts || {},
   };
+}
+
+function normalizeCustomAmounts(val: any): Record<string, number> {
+  if (!val || typeof val !== 'object') return {};
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(val)) {
+    const n = Number(v);
+    if (Number.isFinite(n)) out[k] = n;
+  }
+  return out;
 }
 
 // ---------- WeeklyNote ----------
@@ -172,6 +187,7 @@ export function bookMetricFromDb(row: any): BookDailyMetric {
     googleRev: Number(row.google_rev) || 0,
     koboRev: Number(row.kobo_rev) || 0,
     koboPlusRev: Number(row.kobo_plus_rev) || 0,
+    customAmounts: normalizeCustomAmounts(row.custom_amounts),
   };
 }
 
@@ -191,5 +207,47 @@ export function bookMetricToDb(m: BookDailyMetric, userId: string) {
     google_rev: m.googleRev || 0,
     kobo_rev: m.koboRev || 0,
     kobo_plus_rev: m.koboPlusRev || 0,
+    custom_amounts: m.customAmounts || {},
+  };
+}
+
+// ---------- ProfitCategory ----------
+export function profitCategoryFromDb(row: any): ProfitCategory {
+  return {
+    id: row.id,
+    name: row.name || '',
+    type: row.type === 'ad' ? 'ad' : 'revenue',
+    legacyColumn: row.legacy_column || null,
+    sortOrder: Number(row.sort_order) || 0,
+    isVisible: row.is_visible === false ? false : true,
+    isCustom: !!row.is_custom,
+  };
+}
+
+export function profitCategoryToDb(c: ProfitCategory, userId: string) {
+  return {
+    id: c.id,
+    user_id: userId,
+    name: c.name,
+    type: c.type,
+    legacy_column: c.legacyColumn,
+    sort_order: c.sortOrder,
+    is_visible: c.isVisible,
+    is_custom: c.isCustom,
+  };
+}
+
+// ---------- UserUIPreferences ----------
+export function uiPrefsFromDb(row: any): UserUIPreferences {
+  const hidden = Array.isArray(row?.hidden_profit_tabs)
+    ? (row.hidden_profit_tabs as ProfitTabId[])
+    : [];
+  return { hiddenProfitTabs: hidden };
+}
+
+export function uiPrefsToDb(p: UserUIPreferences, userId: string) {
+  return {
+    user_id: userId,
+    hidden_profit_tabs: p.hiddenProfitTabs,
   };
 }
