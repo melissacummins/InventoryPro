@@ -15,6 +15,48 @@ export interface DailyRecord {
   googleRev: number;
   koboRev: number;
   koboPlusRev: number;
+  customAmounts?: Record<string, number>;
+}
+
+// Categories are user-editable. Built-in ones map to a legacy column on
+// daily_records (so historical data keeps flowing); custom ones store
+// amounts in daily_records.custom_amounts keyed by category id.
+export type CategoryType = 'ad' | 'revenue';
+
+export type LegacyDailyColumn =
+  | 'pnr_ads'
+  | 'contemp_ads'
+  | 'traffic_ads'
+  | 'misc_ads'
+  | 'shopify_rev'
+  | 'amazon_rev'
+  | 'd2d_rev'
+  | 'google_rev'
+  | 'kobo_rev'
+  | 'kobo_plus_rev';
+
+export interface ProfitCategory {
+  id: string;
+  name: string;
+  type: CategoryType;
+  legacyColumn: LegacyDailyColumn | null; // null for custom
+  sortOrder: number;
+  isVisible: boolean;
+  isCustom: boolean;
+}
+
+export type ProfitTabId =
+  | 'dashboard'
+  | 'weekly'
+  | 'books'
+  | 'reports'
+  | 'orders'
+  | 'entry'
+  | 'data'
+  | 'settings';
+
+export interface UserUIPreferences {
+  hiddenProfitTabs: ProfitTabId[];
 }
 
 export interface CalculatedMetrics {
@@ -77,6 +119,7 @@ export interface BookDailyMetric {
   googleRev: number;
   koboRev: number;
   koboPlusRev: number;
+  customAmounts?: Record<string, number>;
   // Legacy fields retained for backward compatibility with old backups
   adSpend?: number;
   otherRev?: number;

@@ -4,16 +4,28 @@ import type {
   OrderSource,
   MonthlyOrderEntry,
   MonthlyPageReads,
+  ProfitCategory,
 } from '../types';
 
-export const calculateMetrics = (record: DailyRecord): CalculatedMetrics => {
-  const totalAdSpend =
+// Totals always include ALL data — both visible and hidden categories,
+// legacy columns and custom_amounts. Visibility only affects what the UI
+// shows, not the math (otherwise hiding "Kobo Plus" would make your ROAS
+// jump, which would be surprising).
+//
+// `categories` is optional: when omitted we fall back to the hardcoded
+// legacy-column sums (keeps old callers working), but Dashboard / Reports
+// / WeeklySummary pass it in so custom categories are counted too.
+export const calculateMetrics = (
+  record: DailyRecord,
+  categories?: ProfitCategory[],
+): CalculatedMetrics => {
+  const legacyAds =
     (record.pnrAds || 0) +
     (record.contempAds || 0) +
     (record.trafficAds || 0) +
     (record.miscAds || 0);
 
-  const totalRevenue =
+  const legacyRev =
     (record.shopifyRev || 0) +
     (record.amazonRev || 0) +
     (record.d2dRev || 0) +
@@ -21,6 +33,19 @@ export const calculateMetrics = (record: DailyRecord): CalculatedMetrics => {
     (record.koboRev || 0) +
     (record.koboPlusRev || 0);
 
+  let customAds = 0;
+  let customRev = 0;
+  if (categories && record.customAmounts) {
+    for (const cat of categories) {
+      if (cat.legacyColumn) continue; // counted in legacy already
+      const amt = record.customAmounts[cat.id] || 0;
+      if (cat.type === 'ad') customAds += amt;
+      else customRev += amt;
+    }
+  }
+
+  const totalAdSpend = legacyAds + customAds;
+  const totalRevenue = legacyRev + customRev;
   const netRevenue = totalRevenue - totalAdSpend;
 
   const roas = totalAdSpend > 0 ? totalRevenue / totalAdSpend : 0;
@@ -77,7 +102,10 @@ export interface WeeklyData {
   roas: number;
 }
 
-export const groupDataByWeek = (records: DailyRecord[]): WeeklyData[] => {
+export const groupDataByWeek = (
+  records: DailyRecord[],
+  categories?: ProfitCategory[],
+): WeeklyData[] => {
   const groups: Record<string, WeeklyData> = {};
 
   records.forEach((record) => {
@@ -102,7 +130,9 @@ export const groupDataByWeek = (records: DailyRecord[]): WeeklyData[] => {
     }
 
     const g = groups[key];
-    const metrics = calculateMetrics(record);
+    const metrics = calculateMetrics(record, categories);
+    // Legacy breakdown fields (kept on the type for back-compat) — only the
+    // total fields are read by the current UI.
     g.fbAds += (record.pnrAds || 0) + (record.contempAds || 0);
     g.trafficAds += record.trafficAds || 0;
     g.miscAds += record.miscAds || 0;
@@ -150,6 +180,7 @@ export const groupDataByMonth = (
   sources: OrderSource[] = [],
   monthlyOrders: MonthlyOrderEntry[] = [],
   monthlyPageReads: MonthlyPageReads[] = [],
+  categories?: ProfitCategory[],
 ): MonthlyData[] => {
   const groups: Record<string, MonthlyData> = {};
 
@@ -170,7 +201,7 @@ export const groupDataByMonth = (
       };
     }
 
-    const m = calculateMetrics(record);
+    const m = calculateMetrics(record, categories);
     groups[key].totalRevenue += m.totalRevenue;
     groups[key].totalSpend += m.totalAdSpend;
   });
@@ -239,6 +270,7 @@ export const groupDataByYear = (
   sources: OrderSource[] = [],
   monthlyOrders: MonthlyOrderEntry[] = [],
   monthlyPageReads: MonthlyPageReads[] = [],
+  categories?: ProfitCategory[],
 ): YearlyData[] => {
   const groups: Record<string, YearlyData> = {};
 
@@ -255,7 +287,7 @@ export const groupDataByYear = (
         pageReads: 0,
       };
     }
-    const m = calculateMetrics(record);
+    const m = calculateMetrics(record, categories);
     groups[year].totalRevenue += m.totalRevenue;
     groups[year].totalSpend += m.totalAdSpend;
   });

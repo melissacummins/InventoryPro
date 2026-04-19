@@ -23,6 +23,7 @@ import type {
   ViewMode,
   AppDataBackup,
   BookDailyMetric,
+  OrderSource,
 } from './types';
 
 const VIEW_TITLES: Record<ViewMode, { title: string; subtitle: string }> = {
@@ -70,6 +71,8 @@ export default function ProfitTrackModule() {
     monthlyPageReads,
     books,
     bookMetrics,
+    categories,
+    uiPrefs,
     setDailyRecords,
     setWeeklyNotes,
     setOrderSources,
@@ -77,6 +80,8 @@ export default function ProfitTrackModule() {
     setMonthlyPageReads,
     setBooks,
     setBookMetrics,
+    setCategories,
+    setUIPrefs,
     clearAll,
   } = useProfitData();
 
@@ -101,6 +106,28 @@ export default function ProfitTrackModule() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading]);
 
+  // Bundle-as-source sync: every bundle book should have a matching order
+  // source so the user can enter monthly units sold for it. Early backups
+  // (and imports from them) didn't serialize bundle sources, so we derive
+  // them on load. Multiplier defaults to the number of books in the bundle.
+  useEffect(() => {
+    if (loading) return;
+    const existingNames = new Set(orderSources.map((s) => s.name));
+    const missing = books.filter(
+      (b) => b.isBundle && !existingNames.has(b.title),
+    );
+    if (missing.length === 0) return;
+    const additions: OrderSource[] = missing.map((b) => ({
+      id: crypto.randomUUID(),
+      name: b.title,
+      multiplier: (b.includedBookIds || []).length || 1,
+      isSystem: false,
+      isArchived: false,
+    }));
+    setOrderSources([...orderSources, ...additions]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, books]);
+
   const handleAddRecord = (record: DailyRecord) => {
     setDailyRecords((prev) => [...prev, record]);
   };
@@ -117,9 +144,16 @@ export default function ProfitTrackModule() {
         if (!record.date) return;
         const existingIndex = next.findIndex((r) => r.date === record.date);
         if (existingIndex >= 0) {
+          // Deep-merge customAmounts so multiple CSV imports into different
+          // custom categories on the same date accumulate instead of clobber.
+          const mergedCustom = {
+            ...(next[existingIndex].customAmounts || {}),
+            ...(record.customAmounts || {}),
+          };
           next[existingIndex] = {
             ...next[existingIndex],
             ...record,
+            customAmounts: mergedCustom,
             id: next[existingIndex].id,
           };
         } else {
@@ -136,6 +170,7 @@ export default function ProfitTrackModule() {
             googleRev: 0,
             koboRev: 0,
             koboPlusRev: 0,
+            customAmounts: {},
             ...record,
           } as DailyRecord);
         }
@@ -245,7 +280,7 @@ export default function ProfitTrackModule() {
     setBookMetrics(backup.bookMetrics || []);
   };
 
-  const navItems: Array<{
+  const allNavItems: Array<{
     view: ViewMode;
     label: string;
     icon: typeof LayoutDashboard;
@@ -259,6 +294,15 @@ export default function ProfitTrackModule() {
     { view: 'data', label: 'All Records', icon: Table },
     { view: 'settings', label: 'Settings', icon: SettingsIcon },
   ];
+
+  const hiddenTabs = new Set(uiPrefs.hiddenProfitTabs);
+  const navItems = allNavItems.filter((item) => !hiddenTabs.has(item.view));
+
+  // If the active view got hidden via Settings, fall back to dashboard.
+  useEffect(() => {
+    if (hiddenTabs.has(view)) setView('dashboard');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uiPrefs.hiddenProfitTabs.join(',')]);
 
   if (loading) {
     return (
@@ -307,12 +351,14 @@ export default function ProfitTrackModule() {
           monthlyOrders={monthlyOrders}
           monthlyPageReads={monthlyPageReads}
           sources={orderSources}
+          categories={categories}
         />
       )}
       {view === 'weekly' && (
         <WeeklySummary
           data={dailyRecords}
           notes={weeklyNotes}
+          categories={categories}
           onUpdateNote={handleUpdateNote}
         />
       )}
@@ -322,6 +368,7 @@ export default function ProfitTrackModule() {
           sources={orderSources}
           monthlyOrders={monthlyOrders}
           monthlyPageReads={monthlyPageReads}
+          categories={categories}
         />
       )}
       {view === 'orders' && (
@@ -346,6 +393,7 @@ export default function ProfitTrackModule() {
       {view === 'entry' && (
         <DataEntry
           existingData={dailyRecords}
+          categories={categories}
           onAddRecord={handleAddRecord}
           onBulkAdd={handleBulkAdd}
           onBulkMerge={handleBulkMerge}
@@ -357,6 +405,7 @@ export default function ProfitTrackModule() {
       {view === 'data' && (
         <DataTable
           data={dailyRecords}
+          categories={categories}
           onDelete={handleDelete}
           onEdit={handleEditRecord}
         />
@@ -366,6 +415,10 @@ export default function ProfitTrackModule() {
           onBackup={generateBackup}
           onRestore={restoreBackup}
           onClear={clearAll}
+          categories={categories}
+          onUpdateCategories={setCategories}
+          uiPrefs={uiPrefs}
+          onUpdateUIPrefs={setUIPrefs}
         />
       )}
     </div>

@@ -110,6 +110,21 @@ function stageBackup(backup: AppDataBackup, state: CurrentState): any {
     state.existingBookTitleLangs.add(key);
   }
 
+  for (const b of inputBooks) {
+    if (!b.isBundle) continue;
+    if (state.sourceNameToId.has(b.title)) continue;
+    const newId = crypto.randomUUID();
+    state.sourceNameToId.set(b.title, newId);
+    sourcesToInsert.push({
+      id: newId,
+      user_id: userId,
+      name: b.title,
+      multiplier: (b.includedBookIds || []).length || 1,
+      is_system: false,
+      is_archived: false,
+    });
+  }
+
   const ordersToInsert: any[] = [];
   let ordersSkipped = 0;
   for (const o of backup.monthlyOrders || []) {
@@ -388,6 +403,62 @@ console.log('\nTest 8: re-importing the same backup twice is a no-op on second r
   assert(second.metricsToInsert.length === 0, 'second pass inserts no book metrics');
   // First pass should still have inserted everything.
   assert(first.sourcesToInsert.length === 1, 'first pass inserted 1 source');
+}
+
+console.log('\nTest 9: bundle books auto-create order sources (with multiplier = # of included books)');
+{
+  const state = emptyState();
+  state.sourceNameToId.set('Amazon', 'amazon-uuid'); // default already exists
+  const backup: AppDataBackup = {
+    version: 2,
+    orderSources: [{ id: 'src_amazon', name: 'Amazon', multiplier: 1 }],
+    monthlyOrders: [],
+    monthlyPageReads: [],
+    dailyRecords: [],
+    weeklyNotes: [],
+    books: [
+      { id: 'b-a', title: 'A', series: '', isBundle: false, includedBookIds: [], language: 'English' },
+      { id: 'b-b', title: 'B', series: '', isBundle: false, includedBookIds: [], language: 'English' },
+      { id: 'b-c', title: 'C', series: '', isBundle: false, includedBookIds: [], language: 'English' },
+      { id: 'bundle-1', title: 'Trilogy Bundle', series: '', isBundle: true, includedBookIds: ['b-a', 'b-b', 'b-c'], language: 'English' },
+      { id: 'bundle-2', title: 'Pair Bundle', series: '', isBundle: true, includedBookIds: ['b-a', 'b-b'], language: 'English' },
+    ],
+    bookMetrics: [],
+  };
+  const staged = stageBackup(backup, state);
+  const sourceNames = staged.sourcesToInsert.map((s: any) => s.name);
+  assert(!sourceNames.includes('Amazon'), 'Amazon (already present) is not re-added');
+  assert(sourceNames.includes('Trilogy Bundle'), 'Trilogy Bundle is added as an order source');
+  assert(sourceNames.includes('Pair Bundle'), 'Pair Bundle is added as an order source');
+  const trilogy = staged.sourcesToInsert.find((s: any) => s.name === 'Trilogy Bundle');
+  assert(trilogy.multiplier === 3, 'Trilogy bundle multiplier == 3 (books in bundle)');
+  const pair = staged.sourcesToInsert.find((s: any) => s.name === 'Pair Bundle');
+  assert(pair.multiplier === 2, 'Pair bundle multiplier == 2 (books in bundle)');
+  assert(!trilogy.is_system, 'Derived bundle source is not system');
+  assert(!trilogy.is_archived, 'Derived bundle source is not archived');
+}
+
+console.log('\nTest 10: bundle book is skipped as order source if one with that name already exists');
+{
+  const state = emptyState();
+  state.sourceNameToId.set('My Bundle', 'existing-bundle-uuid');
+  const backup: AppDataBackup = {
+    version: 2,
+    orderSources: [],
+    monthlyOrders: [],
+    monthlyPageReads: [],
+    dailyRecords: [],
+    weeklyNotes: [],
+    books: [
+      { id: 'b-a', title: 'A', series: '', isBundle: false, includedBookIds: [], language: 'English' },
+      { id: 'bundle-1', title: 'My Bundle', series: '', isBundle: true, includedBookIds: ['b-a'], language: 'English' },
+    ],
+    bookMetrics: [],
+  };
+  const staged = stageBackup(backup, state);
+  const sourceNames = staged.sourcesToInsert.map((s: any) => s.name);
+  assert(!sourceNames.includes('My Bundle'), 'Bundle with existing source name is not duplicated');
+  assert(staged.sourcesToInsert.length === 0, 'No sources added');
 }
 
 console.log('\nAll Firebase-import logic tests passed.');

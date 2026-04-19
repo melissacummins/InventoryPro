@@ -8,6 +8,8 @@ import type {
   MonthlyPageReads,
   BookProduct,
   BookDailyMetric,
+  ProfitCategory,
+  UserUIPreferences,
 } from '../types';
 import {
   dailyRecordFromDb,
@@ -24,7 +26,12 @@ import {
   bookProductToDb,
   bookMetricFromDb,
   bookMetricToDb,
+  profitCategoryFromDb,
+  profitCategoryToDb,
+  uiPrefsFromDb,
+  uiPrefsToDb,
 } from '../utils/mappers';
+import { buildDefaultCategories } from '../utils/defaultCategories';
 
 const DEFAULT_SOURCE_NAMES: Array<Omit<OrderSource, 'id'>> = [
   { name: 'Amazon', multiplier: 1, isSystem: true },
@@ -90,6 +97,10 @@ export function useProfitData() {
   >([]);
   const [books, setBooksState] = useState<BookProduct[]>([]);
   const [bookMetrics, setBookMetricsState] = useState<BookDailyMetric[]>([]);
+  const [categories, setCategoriesState] = useState<ProfitCategory[]>([]);
+  const [uiPrefs, setUIPrefsState] = useState<UserUIPreferences>({
+    hiddenProfitTabs: [],
+  });
 
   // Keep refs to latest state so setters can diff correctly
   const dailyRef = useRef(dailyRecords);
@@ -99,6 +110,8 @@ export function useProfitData() {
   const pageReadsRef = useRef(monthlyPageReads);
   const booksRef = useRef(books);
   const metricsRef = useRef(bookMetrics);
+  const categoriesRef = useRef(categories);
+  const uiPrefsRef = useRef(uiPrefs);
 
   useEffect(() => {
     dailyRef.current = dailyRecords;
@@ -121,6 +134,12 @@ export function useProfitData() {
   useEffect(() => {
     metricsRef.current = bookMetrics;
   }, [bookMetrics]);
+  useEffect(() => {
+    categoriesRef.current = categories;
+  }, [categories]);
+  useEffect(() => {
+    uiPrefsRef.current = uiPrefs;
+  }, [uiPrefs]);
 
   // Initial load
   useEffect(() => {
@@ -144,6 +163,8 @@ export function useProfitData() {
         readsRes,
         booksRes,
         metricsRes,
+        categoriesRes,
+        prefsRes,
       ] = await Promise.all([
         fetchAll('daily_records'),
         fetchAll('weekly_notes'),
@@ -152,6 +173,13 @@ export function useProfitData() {
         fetchAll('monthly_page_reads'),
         fetchAll('book_products'),
         fetchAll('book_daily_metrics'),
+        fetchAll('profit_categories'),
+        supabase
+          .from('user_ui_preferences')
+          .select('*')
+          .eq('user_id', user.id)
+          .maybeSingle()
+          .then((r) => ({ data: r.data ? [r.data] : [] })),
       ]);
 
       if (cancelled) return;
@@ -183,6 +211,36 @@ export function useProfitData() {
       setMonthlyPageReadsState((readsRes.data || []).map(pageReadsFromDb));
       setBooksState((booksRes.data || []).map(bookProductFromDb));
       setBookMetricsState((metricsRes.data || []).map(bookMetricFromDb));
+
+      let loadedCategories: ProfitCategory[] = (categoriesRes.data || []).map(
+        profitCategoryFromDb,
+      );
+      // Seed built-in categories on first load so existing data keeps flowing
+      // through the legacy_column mapping.
+      if (loadedCategories.length === 0) {
+        const seeded: ProfitCategory[] = buildDefaultCategories().map((c) => ({
+          id: crypto.randomUUID(),
+          ...c,
+        }));
+        const rows = seeded.map((c) => profitCategoryToDb(c, user.id));
+        const { data: inserted, error: insertErr } = await supabase
+          .from('profit_categories')
+          .insert(rows)
+          .select('*');
+        if (!insertErr && inserted) {
+          loadedCategories = inserted.map(profitCategoryFromDb);
+        } else {
+          // Migration hasn't been applied yet — render the defaults locally so
+          // the UI keeps working; writes will just fail silently until the
+          // table exists. This keeps the app alive during deploy gaps.
+          loadedCategories = seeded;
+        }
+      }
+      setCategoriesState(loadedCategories);
+
+      const prefsRow = (prefsRes.data || [])[0];
+      setUIPrefsState(prefsRow ? uiPrefsFromDb(prefsRow) : { hiddenProfitTabs: [] });
+
       setLoading(false);
     }
 
@@ -331,6 +389,46 @@ export function useProfitData() {
     [userId, persistArray],
   );
 
+  const setCategories = useCallback(
+    (
+      next:
+        | ProfitCategory[]
+        | ((prev: ProfitCategory[]) => ProfitCategory[]),
+    ) => {
+      const resolved =
+        typeof next === 'function' ? next(categoriesRef.current) : next;
+      const prev = categoriesRef.current;
+      setCategoriesState(resolved);
+      if (userId)
+        persistArray('profit_categories', prev, resolved, (r) =>
+          profitCategoryToDb(r, userId),
+        );
+    },
+    [userId, persistArray],
+  );
+
+  const setUIPrefs = useCallback(
+    (
+      next:
+        | UserUIPreferences
+        | ((prev: UserUIPreferences) => UserUIPreferences),
+    ) => {
+      const resolved =
+        typeof next === 'function' ? next(uiPrefsRef.current) : next;
+      setUIPrefsState(resolved);
+      if (userId) {
+        // user_ui_preferences is keyed on user_id (one row), so upsert.
+        supabase
+          .from('user_ui_preferences')
+          .upsert(uiPrefsToDb(resolved, userId), { onConflict: 'user_id' })
+          .then(() => {
+            /* fire-and-forget; errors surface via network inspector */
+          });
+      }
+    },
+    [userId],
+  );
+
   const clearAll = useCallback(async () => {
     if (!userId) return;
     await Promise.all([
@@ -341,6 +439,8 @@ export function useProfitData() {
       supabase.from('weekly_notes').delete().eq('user_id', userId),
       supabase.from('daily_records').delete().eq('user_id', userId),
       supabase.from('order_sources').delete().eq('user_id', userId),
+      supabase.from('profit_categories').delete().eq('user_id', userId),
+      supabase.from('user_ui_preferences').delete().eq('user_id', userId),
     ]);
     setDailyRecordsState([]);
     setWeeklyNotesState([]);
@@ -349,6 +449,8 @@ export function useProfitData() {
     setMonthlyPageReadsState([]);
     setBooksState([]);
     setBookMetricsState([]);
+    setCategoriesState([]);
+    setUIPrefsState({ hiddenProfitTabs: [] });
   }, [userId]);
 
   return {
@@ -361,6 +463,8 @@ export function useProfitData() {
     monthlyPageReads,
     books,
     bookMetrics,
+    categories,
+    uiPrefs,
     setDailyRecords,
     setWeeklyNotes,
     setOrderSources,
@@ -368,6 +472,8 @@ export function useProfitData() {
     setMonthlyPageReads,
     setBooks,
     setBookMetrics,
+    setCategories,
+    setUIPrefs,
     clearAll,
   };
 }

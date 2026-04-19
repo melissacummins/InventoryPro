@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { DailyRecord, OrderSource, MonthlyOrderEntry, MonthlyPageReads } from '../types';
+import { DailyRecord, OrderSource, MonthlyOrderEntry, MonthlyPageReads, ProfitCategory } from '../types';
 import { groupDataByMonth, groupDataByYear, formatCurrency, formatPercent, formatNumber } from '../utils/calculations';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { ChevronDown, BookOpen, Layers } from 'lucide-react';
@@ -10,14 +10,21 @@ interface ReportsProps {
   sources: OrderSource[];
   monthlyOrders: MonthlyOrderEntry[];
   monthlyPageReads: MonthlyPageReads[];
+  categories: ProfitCategory[];
 }
 
-export const Reports: React.FC<ReportsProps> = ({ data, sources, monthlyOrders, monthlyPageReads }) => {
+export const Reports: React.FC<ReportsProps> = ({ data, sources, monthlyOrders, monthlyPageReads, categories }) => {
   const [activeTab, setActiveTab] = useState<'monthly' | 'yearly'>('monthly');
   const [selectedYear, setSelectedYear] = useState<string>('All');
 
-  const yearlyData = useMemo(() => groupDataByYear(data, sources, monthlyOrders, monthlyPageReads), [data, sources, monthlyOrders, monthlyPageReads]);
-  const monthlyData = useMemo(() => groupDataByMonth(data, sources, monthlyOrders, monthlyPageReads), [data, sources, monthlyOrders, monthlyPageReads]);
+  const yearlyData = useMemo(
+    () => groupDataByYear(data, sources, monthlyOrders, monthlyPageReads, categories),
+    [data, sources, monthlyOrders, monthlyPageReads, categories],
+  );
+  const monthlyData = useMemo(
+    () => groupDataByMonth(data, sources, monthlyOrders, monthlyPageReads, categories),
+    [data, sources, monthlyOrders, monthlyPageReads, categories],
+  );
 
   // Extract available years for filter
   const years = useMemo(() => {

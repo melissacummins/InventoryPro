@@ -1,15 +1,29 @@
 import React, { useRef } from 'react';
 import { Download, Upload, AlertTriangle, RefreshCw } from 'lucide-react';
-import { AppDataBackup } from '../types';
+import { AppDataBackup, ProfitCategory, UserUIPreferences } from '../types';
 import FirebaseImport from './FirebaseImport';
+import CategoriesSettings from './CategoriesSettings';
+import TabVisibilitySettings from './TabVisibilitySettings';
 
 interface SettingsProps {
   onBackup: () => AppDataBackup;
   onRestore: (data: AppDataBackup) => void;
   onClear: () => void;
+  categories: ProfitCategory[];
+  onUpdateCategories: (next: ProfitCategory[]) => void;
+  uiPrefs: UserUIPreferences;
+  onUpdateUIPrefs: (next: UserUIPreferences) => void;
 }
 
-export const Settings: React.FC<SettingsProps> = ({ onBackup, onRestore, onClear }) => {
+export const Settings: React.FC<SettingsProps> = ({
+  onBackup,
+  onRestore,
+  onClear,
+  categories,
+  onUpdateCategories,
+  uiPrefs,
+  onUpdateUIPrefs,
+}) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDownload = () => {
@@ -64,6 +78,13 @@ export const Settings: React.FC<SettingsProps> = ({ onBackup, onRestore, onClear
 
   return (
     <div className="max-w-2xl mx-auto space-y-8 animate-fade-in">
+      <CategoriesSettings
+        categories={categories}
+        onUpdate={onUpdateCategories}
+      />
+
+      <TabVisibilitySettings uiPrefs={uiPrefs} onUpdate={onUpdateUIPrefs} />
+
       <FirebaseImport />
 
       <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100">
