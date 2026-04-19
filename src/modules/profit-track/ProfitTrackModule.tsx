@@ -405,6 +405,7 @@ export default function ProfitTrackModule() {
       {view === 'data' && (
         <DataTable
           data={dailyRecords}
+          categories={categories}
           onDelete={handleDelete}
           onEdit={handleEditRecord}
         />

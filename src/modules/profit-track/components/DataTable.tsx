@@ -1,15 +1,16 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { DailyRecord } from '../types';
+import { DailyRecord, ProfitCategory } from '../types';
 import { calculateMetrics, formatCurrency, formatPercent } from '../utils/calculations';
 import { Pencil, Trash2, Search, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
 
 interface DataTableProps {
   data: DailyRecord[];
+  categories: ProfitCategory[];
   onDelete: (id: string) => void;
   onEdit: (record: DailyRecord) => void;
 }
 
-export const DataTable: React.FC<DataTableProps> = ({ data, onDelete, onEdit }) => {
+export const DataTable: React.FC<DataTableProps> = ({ data, categories, onDelete, onEdit }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedYear, setSelectedYear] = useState('All');
   const [selectedMonth, setSelectedMonth] = useState('All');
@@ -133,7 +134,7 @@ export const DataTable: React.FC<DataTableProps> = ({ data, onDelete, onEdit }) 
             <tbody className="bg-white divide-y divide-gray-200">
               {paginatedData.length > 0 ? (
                   paginatedData.map((record) => {
-                    const metrics = calculateMetrics(record);
+                    const metrics = calculateMetrics(record, categories);
                     return (
                         <tr key={record.id} className="hover:bg-gray-50 transition-colors group">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 sticky left-0 bg-white group-hover:bg-gray-50">
