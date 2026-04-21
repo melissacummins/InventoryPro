@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Plus, Package, Truck, CheckCircle, Clock, Trash2, Loader2, AlertCircle, X
+  Plus, Package, Truck, CheckCircle, Clock, Trash2, Loader2, AlertCircle, X, FileText
 } from 'lucide-react';
 import { getPurchaseOrders, createPurchaseOrder, confirmArrival, deletePurchaseOrder } from '../api/purchaseOrders';
-import type { CreatePOInput, POLineItem } from '../api/purchaseOrders';
+import type { CreatePOInput, POLineItem, ConfirmArrivalInput } from '../api/purchaseOrders';
 import type { PurchaseOrder, Product } from '../../../lib/types';
 import Modal from '../../../components/Modal';
 
@@ -26,7 +26,7 @@ export default function PurchaseOrders({ products, onInventoryChanged }: Props) 
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
-  // Group orders by po_number
+  // Group orders by invoice (po_number)
   const grouped = groupOrders(orders);
   const pendingGroups = grouped.filter(g => g.items.some(i => i.status === 'pending'));
   const arrivedGroups = grouped.filter(g => g.items.every(i => i.status === 'arrived'));
@@ -68,8 +68,9 @@ export default function PurchaseOrders({ products, onInventoryChanged }: Props) 
           <h3 className="text-sm font-semibold text-slate-600 uppercase tracking-wider">Pending</h3>
           {pendingGroups.map(group => (
             <POCard
-              key={group.poNumber}
+              key={group.key}
               group={group}
+              products={products}
               onConfirm={setConfirmingPO}
               onDelete={handleDelete}
             />
@@ -83,8 +84,9 @@ export default function PurchaseOrders({ products, onInventoryChanged }: Props) 
           <h3 className="text-sm font-semibold text-slate-600 uppercase tracking-wider">Arrived</h3>
           {arrivedGroups.map(group => (
             <POCard
-              key={group.poNumber}
+              key={group.key}
               group={group}
+              products={products}
               onConfirm={setConfirmingPO}
               onDelete={handleDelete}
             />
@@ -121,10 +123,12 @@ export default function PurchaseOrders({ products, onInventoryChanged }: Props) 
         open={!!confirmingPO}
         onClose={() => setConfirmingPO(null)}
         title="Confirm Arrival"
+        maxWidth="max-w-xl"
       >
         {confirmingPO && (
           <ConfirmArrivalForm
             po={confirmingPO}
+            products={products}
             onClose={() => setConfirmingPO(null)}
             onConfirmed={() => {
               fetchOrders();
@@ -141,7 +145,9 @@ export default function PurchaseOrders({ products, onInventoryChanged }: Props) 
 // ---- PO Card ----
 
 interface POGroup {
-  poNumber: string;
+  key: string;
+  invoiceNumber: string;
+  vendor: string;
   orderDate: string;
   expectedDispatch: string;
   expectedArrival: string;
@@ -151,13 +157,15 @@ interface POGroup {
 function groupOrders(orders: PurchaseOrder[]): POGroup[] {
   const map = new Map<string, PurchaseOrder[]>();
   for (const o of orders) {
-    const key = o.po_number || o.id;
+    const key = `${o.vendor || 'no-vendor'}|${o.po_number || o.id}`;
     if (!map.has(key)) map.set(key, []);
     map.get(key)!.push(o);
   }
 
-  return Array.from(map.entries()).map(([poNumber, items]) => ({
-    poNumber,
+  return Array.from(map.entries()).map(([key, items]) => ({
+    key,
+    invoiceNumber: items[0].po_number || '(no invoice #)',
+    vendor: items[0].vendor || '',
     orderDate: items[0].order_date,
     expectedDispatch: items[0].expected_dispatch,
     expectedArrival: items[0].expected_arrival,
@@ -165,8 +173,9 @@ function groupOrders(orders: PurchaseOrder[]): POGroup[] {
   }));
 }
 
-function POCard({ group, onConfirm, onDelete }: {
+function POCard({ group, products, onConfirm, onDelete }: {
   group: POGroup;
+  products: Product[];
   onConfirm: (po: PurchaseOrder) => void;
   onDelete: (id: string) => void;
 }) {
@@ -185,58 +194,83 @@ function POCard({ group, onConfirm, onDelete }: {
             <Clock className="w-5 h-5 text-amber-500" />
           )}
           <div>
-            <span className="font-semibold text-slate-800 text-sm">PO: {group.poNumber}</span>
-            <span className="text-xs text-slate-400 ml-3">
+            <div className="flex items-center gap-2">
+              {group.vendor && (
+                <span className="font-semibold text-slate-800 text-sm">{group.vendor}</span>
+              )}
+              <span className="text-xs text-slate-500">Invoice #{group.invoiceNumber}</span>
+            </div>
+            <span className="text-xs text-slate-400">
               {totalOrdered} ordered{allArrived && `, ${totalReceived} received`}
             </span>
           </div>
         </div>
         <div className="flex items-center gap-4 text-xs text-slate-500">
           <span>Ordered: {group.orderDate}</span>
-          <span>Dispatch: {group.expectedDispatch}</span>
-          <span>Arrival: {group.expectedArrival}</span>
+          {group.expectedDispatch && <span>Dispatch: {group.expectedDispatch}</span>}
+          {group.expectedArrival && <span>Arrival: {group.expectedArrival}</span>}
         </div>
       </div>
 
       {/* Line items */}
       <div className="divide-y divide-slate-100">
-        {group.items.map(item => (
-          <div key={item.id} className="flex items-center justify-between px-5 py-3">
-            <div className="flex items-center gap-3">
-              <Package className="w-4 h-4 text-slate-400" />
-              <div>
-                <p className="text-sm font-medium text-slate-800">{item.product_name}</p>
-                {item.notes && <p className="text-xs text-slate-400">{item.notes}</p>}
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-sm font-semibold text-slate-800">
-                  {item.status === 'arrived' ? (
-                    <>{item.actual_quantity} <span className="text-xs font-normal text-slate-400">of {item.quantity} ordered</span></>
+        {group.items.map(item => {
+          const sdProduct = item.scratch_dent_product_id ? products.find(p => p.id === item.scratch_dent_product_id) : null;
+          return (
+            <div key={item.id} className="px-5 py-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Package className="w-4 h-4 text-slate-400" />
+                  <p className="text-sm font-medium text-slate-800">{item.product_name}</p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="text-right">
+                    <p className="text-sm font-semibold text-slate-800">
+                      {item.status === 'arrived' ? (
+                        <>{item.actual_quantity} <span className="text-xs font-normal text-slate-400">of {item.quantity} ordered</span></>
+                      ) : (
+                        <>{item.quantity} <span className="text-xs font-normal text-slate-400">ordered</span></>
+                      )}
+                    </p>
+                  </div>
+                  {item.status === 'pending' ? (
+                    <button
+                      onClick={() => onConfirm(item)}
+                      className="px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
+                    >
+                      Confirm Arrival
+                    </button>
                   ) : (
-                    <>{item.quantity} <span className="text-xs font-normal text-slate-400">ordered</span></>
+                    <span className="px-3 py-1.5 text-xs font-medium bg-emerald-100 text-emerald-700 rounded-lg">
+                      Received
+                    </span>
                   )}
-                </p>
+                  <button onClick={() => onDelete(item.id)} className="p-1 text-slate-300 hover:text-red-500">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
-              {item.status === 'pending' ? (
-                <button
-                  onClick={() => onConfirm(item)}
-                  className="px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
-                >
-                  Confirm Arrival
-                </button>
-              ) : (
-                <span className="px-3 py-1.5 text-xs font-medium bg-emerald-100 text-emerald-700 rounded-lg">
-                  Received
-                </span>
+              {/* Additional info: scratch & dent split + notes */}
+              {item.status === 'arrived' && (item.scratch_dent_quantity > 0 || item.notes) && (
+                <div className="mt-2 ml-7 text-xs text-slate-500 space-y-0.5">
+                  {item.scratch_dent_quantity > 0 && sdProduct && (
+                    <p>
+                      <span className="font-medium text-amber-700">{item.scratch_dent_quantity} scratch & dent</span>
+                      <span className="text-slate-400"> &rarr; added to </span>
+                      <span className="text-slate-600">{sdProduct.name}</span>
+                    </p>
+                  )}
+                  {item.notes && (
+                    <p className="flex items-start gap-1.5">
+                      <FileText className="w-3 h-3 text-slate-400 shrink-0 mt-0.5" />
+                      <span>{item.notes}</span>
+                    </p>
+                  )}
+                </div>
               )}
-              <button onClick={() => onDelete(item.id)} className="p-1 text-slate-300 hover:text-red-500">
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -249,7 +283,8 @@ function AddPOForm({ products, onClose, onCreated }: {
   onClose: () => void;
   onCreated: () => void;
 }) {
-  const [poNumber, setPoNumber] = useState(`PO-${Date.now().toString(36).toUpperCase()}`);
+  const [invoiceNumber, setInvoiceNumber] = useState('');
+  const [vendor, setVendor] = useState('');
   const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0]);
   const [expectedDispatch, setExpectedDispatch] = useState('');
   const [expectedArrival, setExpectedArrival] = useState('');
@@ -286,7 +321,8 @@ function AddPOForm({ products, onClose, onCreated }: {
     setError('');
     try {
       const input: CreatePOInput = {
-        po_number: poNumber,
+        invoice_number: invoiceNumber.trim(),
+        vendor: vendor.trim(),
         order_date: orderDate,
         expected_dispatch: expectedDispatch,
         expected_arrival: expectedArrival,
@@ -303,13 +339,24 @@ function AddPOForm({ products, onClose, onCreated }: {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {/* PO Info */}
+      {/* Vendor & Invoice */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs text-slate-500 mb-1">PO Number</label>
-          <input type="text" value={poNumber} onChange={e => setPoNumber(e.target.value)}
+          <label className="block text-xs text-slate-500 mb-1">Vendor *</label>
+          <input type="text" value={vendor} onChange={e => setVendor(e.target.value)}
+            placeholder="e.g., IngramSpark, BookVault"
             className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-400" />
         </div>
+        <div>
+          <label className="block text-xs text-slate-500 mb-1">Invoice #</label>
+          <input type="text" value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)}
+            placeholder="From vendor"
+            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-400" />
+        </div>
+      </div>
+
+      {/* Dates */}
+      <div className="grid grid-cols-3 gap-4">
         <div>
           <label className="block text-xs text-slate-500 mb-1">Order Date *</label>
           <input type="date" value={orderDate} onChange={e => setOrderDate(e.target.value)}
@@ -385,21 +432,40 @@ function AddPOForm({ products, onClose, onCreated }: {
 
 // ---- Confirm Arrival Form ----
 
-function ConfirmArrivalForm({ po, onClose, onConfirmed }: {
+function ConfirmArrivalForm({ po, products, onClose, onConfirmed }: {
   po: PurchaseOrder;
+  products: Product[];
   onClose: () => void;
   onConfirmed: () => void;
 }) {
-  const [actualQty, setActualQty] = useState(po.quantity);
+  // Find the main product to get its default scratch & dent product
+  const mainProduct = products.find(p => p.id === po.product_id);
+  const defaultSdProductId = mainProduct?.default_scratch_dent_product_id || '';
+
+  const [goodQty, setGoodQty] = useState(po.quantity);
+  const [sdQty, setSdQty] = useState(0);
+  const [sdProductId, setSdProductId] = useState<string>(defaultSdProductId);
+  const [saveAsDefault, setSaveAsDefault] = useState(false);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   async function handleConfirm() {
+    if (sdQty > 0 && !sdProductId) {
+      setError('Please select a product for the scratch & dent items.');
+      return;
+    }
     setSaving(true);
     setError('');
     try {
-      await confirmArrival(po.id, actualQty, notes);
+      const input: ConfirmArrivalInput = {
+        good_quantity: goodQty,
+        scratch_dent_quantity: sdQty,
+        scratch_dent_product_id: sdQty > 0 ? sdProductId : null,
+        save_scratch_dent_as_default: saveAsDefault,
+        notes,
+      };
+      await confirmArrival(po.id, input);
       onConfirmed();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to confirm arrival');
@@ -407,7 +473,13 @@ function ConfirmArrivalForm({ po, onClose, onConfirmed }: {
     }
   }
 
-  const diff = actualQty - po.quantity;
+  const total = goodQty + sdQty;
+  const diff = total - po.quantity;
+  const sdProduct = sdProductId ? products.find(p => p.id === sdProductId) : null;
+
+  // Filter products for scratch & dent picker (exclude the main product)
+  const sdOptions = products.filter(p => p.id !== po.product_id);
+  const hasDefault = !!defaultSdProductId;
 
   return (
     <div className="space-y-4">
@@ -416,33 +488,86 @@ function ConfirmArrivalForm({ po, onClose, onConfirmed }: {
         <p className="text-xs text-slate-500 mt-1">Ordered: {po.quantity} units</p>
       </div>
 
-      <div>
-        <label className="block text-xs text-slate-500 mb-1">Actual Quantity Received</label>
-        <input type="number" min={0} value={actualQty}
-          onChange={e => setActualQty(Number(e.target.value))}
-          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-400" />
+      {/* Quantity Split */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-xs text-slate-500 mb-1">Good Quantity</label>
+          <input type="number" min={0} value={goodQty}
+            onChange={e => setGoodQty(Number(e.target.value))}
+            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-400" />
+        </div>
+        <div>
+          <label className="block text-xs text-slate-500 mb-1">Scratch & Dent Qty</label>
+          <input type="number" min={0} value={sdQty}
+            onChange={e => setSdQty(Number(e.target.value))}
+            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-400" />
+        </div>
+      </div>
+
+      {/* Total summary */}
+      <div className="text-xs text-slate-500">
+        Total received: <strong className="text-slate-700">{total}</strong>
         {diff !== 0 && (
-          <p className={`text-xs mt-1 ${diff < 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
-            {diff < 0 ? `${Math.abs(diff)} fewer than ordered` : `${diff} more than ordered`}
-          </p>
+          <span className={diff < 0 ? 'text-amber-600 ml-2' : 'text-emerald-600 ml-2'}>
+            ({diff < 0 ? `${Math.abs(diff)} fewer than ordered` : `${diff} more than ordered`})
+          </span>
         )}
       </div>
 
+      {/* Scratch & Dent product picker */}
+      {sdQty > 0 && (
+        <div className="border-t border-slate-200 pt-4 space-y-3">
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">
+              Scratch & Dent Product {hasDefault && <span className="text-slate-400">(default saved)</span>}
+            </label>
+            <select
+              value={sdProductId}
+              onChange={e => setSdProductId(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-400"
+            >
+              <option value="">Select the S&D product...</option>
+              {sdOptions.map(p => <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>)}
+            </select>
+            <p className="text-xs text-slate-400 mt-1">
+              {sdProduct ? `${sdQty} units will be added to "${sdProduct.name}"` : 'Pick the product that represents the damaged/scratch & dent version'}
+            </p>
+          </div>
+
+          {sdProductId && sdProductId !== defaultSdProductId && (
+            <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+              <input type="checkbox" checked={saveAsDefault}
+                onChange={e => setSaveAsDefault(e.target.checked)}
+                className="rounded" />
+              Save as default scratch & dent product for <strong>{po.product_name}</strong>
+            </label>
+          )}
+        </div>
+      )}
+
+      {/* Notes */}
       <div>
-        <label className="block text-xs text-slate-500 mb-1">Notes (scratch & dent, damages, etc.)</label>
+        <label className="block text-xs text-slate-500 mb-1">Notes</label>
         <textarea
           value={notes}
           onChange={e => setNotes(e.target.value)}
           rows={2}
-          placeholder="e.g., 2 copies had damaged covers"
+          placeholder="e.g., Vendor shipped 54 of item 1 but only 49 of item 3"
           className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-400 resize-none"
         />
+        <p className="text-xs text-slate-400 mt-1">
+          Notes will appear on the product's detail view so you can reference them later.
+        </p>
       </div>
 
-      <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-        <p className="text-sm text-blue-700">
-          This will add <strong>{actualQty}</strong> units to inventory for <strong>{po.product_name}</strong>.
-        </p>
+      {/* Summary */}
+      <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700 space-y-1">
+        {goodQty > 0 && (
+          <p>&bull; <strong>{goodQty}</strong> good units will be added to <strong>{po.product_name}</strong></p>
+        )}
+        {sdQty > 0 && sdProduct && (
+          <p>&bull; <strong>{sdQty}</strong> scratch & dent units will be added to <strong>{sdProduct.name}</strong></p>
+        )}
       </div>
 
       {error && (
@@ -454,7 +579,7 @@ function ConfirmArrivalForm({ po, onClose, onConfirmed }: {
 
       <div className="flex justify-end gap-3 pt-2">
         <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
-        <button onClick={handleConfirm} disabled={saving}
+        <button onClick={handleConfirm} disabled={saving || total === 0}
           className="px-4 py-2 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50">
           {saving ? 'Confirming...' : 'Confirm & Add to Inventory'}
         </button>

@@ -46,6 +46,7 @@ export interface Product {
   do_not_reorder: boolean;
   shopify_inventory_item_id: string | null;
   shopify_variant_id: string | null;
+  default_scratch_dent_product_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -71,12 +72,15 @@ export interface PurchaseOrder {
   product_name: string;
   quantity: number;
   actual_quantity: number | null;
+  scratch_dent_quantity: number;
+  scratch_dent_product_id: string | null;
   order_date: string;
   expected_dispatch: string;
   expected_arrival: string;
   actual_arrival: string | null;
   status: 'pending' | 'arrived';
   po_number: string | null;
+  vendor: string;
   notes: string;
   created_at: string;
 }

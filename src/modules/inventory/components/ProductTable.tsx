@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { Search, ChevronDown, ChevronUp, ChevronRight, Edit2, Check, X, Plus, Trash2 } from 'lucide-react';
-import type { Product } from '../../../lib/types';
+import { useState, useEffect } from 'react';
+import { Search, ChevronDown, ChevronUp, ChevronRight, Edit2, Check, X, Plus, Trash2, FileText } from 'lucide-react';
+import type { Product, PurchaseOrder } from '../../../lib/types';
 import { calculateProductMetrics, formatCurrency, formatPercent, marginColor, CATEGORIES, STATUSES } from '../utils';
 import { updateProduct, deleteProduct } from '../api';
+import { getNotesForProduct } from '../api/purchaseOrders';
 
 interface ProductTableProps {
   products: Product[];
@@ -601,6 +602,9 @@ export default function ProductTable({ products, onRefetch, onAdjustStock, pendi
                           </div>
                         )}
 
+                        {/* Recent PO Notes */}
+                        <POProductNotes productId={product.id} />
+
                         {/* Delete Product */}
                         <div className="mt-4 flex justify-end">
                           <button
@@ -625,6 +629,48 @@ export default function ProductTable({ products, onRefetch, onAdjustStock, pendi
             </tbody>
           </table>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function POProductNotes({ productId }: { productId: string }) {
+  const [notes, setNotes] = useState<PurchaseOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    getNotesForProduct(productId).then(data => {
+      if (active) {
+        setNotes(data);
+        setLoading(false);
+      }
+    });
+    return () => { active = false; };
+  }, [productId]);
+
+  if (loading || notes.length === 0) return null;
+
+  return (
+    <div className="mt-4 bg-white rounded-xl border border-slate-200 p-4">
+      <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+        <FileText className="w-3 h-3" /> Purchase Order Notes
+      </h4>
+      <div className="space-y-2">
+        {notes.map(po => (
+          <div key={po.id} className="flex gap-3 text-sm">
+            <div className="text-xs text-slate-400 shrink-0 w-24">
+              {po.actual_arrival || po.order_date}
+              {po.vendor && <p>{po.vendor}</p>}
+            </div>
+            <div className="flex-1">
+              <p className="text-slate-700">{po.notes}</p>
+              {po.po_number && (
+                <p className="text-xs text-slate-400 mt-0.5">Invoice #{po.po_number}</p>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

@@ -14,11 +14,20 @@ export interface POLineItem {
 }
 
 export interface CreatePOInput {
-  po_number: string;
+  invoice_number: string;
+  vendor: string;
   order_date: string;
   expected_dispatch: string;
   expected_arrival: string;
   items: POLineItem[];
+}
+
+export interface ConfirmArrivalInput {
+  good_quantity: number;
+  scratch_dent_quantity: number;
+  scratch_dent_product_id: string | null;
+  save_scratch_dent_as_default: boolean;
+  notes: string;
 }
 
 export async function getPurchaseOrders(): Promise<PurchaseOrder[]> {
@@ -41,7 +50,8 @@ export async function createPurchaseOrder(input: CreatePOInput): Promise<void> {
     order_date: input.order_date,
     expected_dispatch: input.expected_dispatch,
     expected_arrival: input.expected_arrival,
-    po_number: input.po_number,
+    po_number: input.invoice_number,
+    vendor: input.vendor,
     status: 'pending',
   }));
 
@@ -49,73 +59,99 @@ export async function createPurchaseOrder(input: CreatePOInput): Promise<void> {
   if (error) throw error;
 }
 
-export async function confirmArrival(
-  id: string,
-  actualQuantity: number,
-  notes: string
-): Promise<void> {
+export async function confirmArrival(id: string, input: ConfirmArrivalInput): Promise<void> {
   const { data: po, error: fetchErr } = await supabase
     .from('purchase_orders')
-    .select('product_id, quantity')
+    .select('product_id, product_name, quantity')
     .eq('id', id)
     .single();
   if (fetchErr || !po) throw new Error('Purchase order not found');
+
+  const totalReceived = input.good_quantity + input.scratch_dent_quantity;
+  const userId = await getUserId();
 
   // Update the PO status
   const { error: updateErr } = await supabase
     .from('purchase_orders')
     .update({
       status: 'arrived',
-      actual_quantity: actualQuantity,
+      actual_quantity: totalReceived,
+      scratch_dent_quantity: input.scratch_dent_quantity,
+      scratch_dent_product_id: input.scratch_dent_product_id,
       actual_arrival: new Date().toISOString().split('T')[0],
-      notes,
+      notes: input.notes,
     })
     .eq('id', id);
   if (updateErr) throw updateErr;
 
-  // Add to inventory
-  if (actualQuantity > 0 && po.product_id) {
-    const userId = await getUserId();
-
-    // Get current product inventory
-    const { data: product } = await supabase
+  // Save scratch & dent product as default for the main product
+  if (input.save_scratch_dent_as_default && input.scratch_dent_product_id && po.product_id) {
+    await supabase
       .from('products')
-      .select('book_inventory, book_stock, category, bundles_inventory')
-      .eq('id', po.product_id)
-      .single();
-
-    if (product) {
-      const isBundle = product.category === 'Bundle' || product.category === 'Book Box';
-      const currentInventory = isBundle ? (product.bundles_inventory || 0) : (product.book_inventory || 0);
-      const newInventory = currentInventory + actualQuantity;
-
-      const updateFields: Record<string, unknown> = {
+      .update({
+        default_scratch_dent_product_id: input.scratch_dent_product_id,
         updated_at: new Date().toISOString(),
-      };
-
-      if (isBundle) {
-        updateFields.bundles_inventory = newInventory;
-      } else {
-        updateFields.book_inventory = newInventory;
-        updateFields.book_stock = (product.book_stock || 0) + actualQuantity;
-      }
-
-      await supabase.from('products').update(updateFields).eq('id', po.product_id);
-
-      // Log inventory adjustment
-      await supabase.from('inventory_orders').insert({
-        user_id: userId,
-        product_id: po.product_id,
-        type: 'add',
-        inventory_type: isBundle ? 'bundle' : 'book',
-        quantity: actualQuantity,
-        previous_value: currentInventory,
-        new_value: newInventory,
-        source: 'Purchase Order',
-        notes: notes || `PO arrival: ${actualQuantity} of ${po.quantity} ordered`,
-      });
-    }
+      })
+      .eq('id', po.product_id);
   }
+
+  // Add good quantity to main product inventory
+  if (input.good_quantity > 0 && po.product_id) {
+    await addToInventory(
+      po.product_id,
+      input.good_quantity,
+      userId,
+      `PO arrival: ${input.good_quantity} good units${input.notes ? ' — ' + input.notes : ''}`
+    );
+  }
+
+  // Add scratch & dent quantity to the S&D product inventory
+  if (input.scratch_dent_quantity > 0 && input.scratch_dent_product_id) {
+    await addToInventory(
+      input.scratch_dent_product_id,
+      input.scratch_dent_quantity,
+      userId,
+      `PO arrival (scratch & dent from ${po.product_name}): ${input.scratch_dent_quantity} units${input.notes ? ' — ' + input.notes : ''}`
+    );
+  }
+}
+
+async function addToInventory(productId: string, quantity: number, userId: string, source: string) {
+  const { data: product } = await supabase
+    .from('products')
+    .select('book_inventory, book_stock, category, bundles_inventory')
+    .eq('id', productId)
+    .single();
+  if (!product) return;
+
+  const isBundle = product.category === 'Bundle' || product.category === 'Book Box';
+  const currentInventory = isBundle ? (product.bundles_inventory || 0) : (product.book_inventory || 0);
+  const newInventory = currentInventory + quantity;
+
+  const updateFields: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+
+  if (isBundle) {
+    updateFields.bundles_inventory = newInventory;
+  } else {
+    updateFields.book_inventory = newInventory;
+    updateFields.book_stock = (product.book_stock || 0) + quantity;
+  }
+
+  await supabase.from('products').update(updateFields).eq('id', productId);
+
+  await supabase.from('inventory_orders').insert({
+    user_id: userId,
+    product_id: productId,
+    type: 'add',
+    inventory_type: isBundle ? 'bundle' : 'book',
+    quantity,
+    previous_value: currentInventory,
+    new_value: newInventory,
+    source: 'Purchase Order',
+    notes: source,
+  });
 }
 
 export async function deletePurchaseOrder(id: string): Promise<void> {
@@ -138,4 +174,18 @@ export async function getPendingByProduct(): Promise<Map<string, number>> {
     }
   }
   return pending;
+}
+
+// Get recent PO notes for a specific product (for showing in product detail)
+export async function getNotesForProduct(productId: string): Promise<PurchaseOrder[]> {
+  const { data, error } = await supabase
+    .from('purchase_orders')
+    .select('*')
+    .or(`product_id.eq.${productId},scratch_dent_product_id.eq.${productId}`)
+    .not('notes', 'is', null)
+    .not('notes', 'eq', '')
+    .order('created_at', { ascending: false })
+    .limit(5);
+  if (error) throw error;
+  return (data || []).filter(po => po.notes && po.notes.trim().length > 0);
 }
