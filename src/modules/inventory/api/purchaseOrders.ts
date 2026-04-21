@@ -1,5 +1,5 @@
 import { supabase } from '../../../lib/supabase';
-import type { PurchaseOrder } from '../../../lib/types';
+import type { PurchaseOrder, Vendor } from '../../../lib/types';
 
 async function getUserId() {
   const { data: { user } } = await supabase.auth.getUser();
@@ -192,4 +192,31 @@ export async function getNotesForProduct(productId: string): Promise<PurchaseOrd
     .limit(5);
   if (error) throw error;
   return (data || []).filter(po => po.notes && po.notes.trim().length > 0);
+}
+
+// ---- Vendors ----
+
+export async function getVendors(): Promise<Vendor[]> {
+  const { data, error } = await supabase
+    .from('vendors')
+    .select('*')
+    .order('name');
+  if (error) throw error;
+  return data;
+}
+
+export async function addVendor(name: string): Promise<Vendor> {
+  const userId = await getUserId();
+  const { data, error } = await supabase
+    .from('vendors')
+    .insert({ user_id: userId, name: name.trim() })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteVendor(id: string): Promise<void> {
+  const { error } = await supabase.from('vendors').delete().eq('id', id);
+  if (error) throw error;
 }

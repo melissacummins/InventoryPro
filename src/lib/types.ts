@@ -120,6 +120,15 @@ export interface PrinterQuote {
   updated_at: string;
 }
 
+export interface Vendor {
+  id: string;
+  user_id: string;
+  name: string;
+  contact_info: string;
+  notes: string;
+  created_at: string;
+}
+
 // ============================================
 // CROSS-SELL MODULE
 // ============================================

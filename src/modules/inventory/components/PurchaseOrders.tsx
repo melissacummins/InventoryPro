@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Plus, Package, Truck, CheckCircle, Clock, Trash2, Loader2, AlertCircle, X, FileText
 } from 'lucide-react';
-import { getPurchaseOrders, createPurchaseOrder, confirmArrival, deletePurchaseOrder } from '../api/purchaseOrders';
+import { getPurchaseOrders, createPurchaseOrder, confirmArrival, deletePurchaseOrder, getVendors, addVendor } from '../api/purchaseOrders';
 import type { CreatePOInput, POLineItem, ConfirmArrivalInput } from '../api/purchaseOrders';
-import type { PurchaseOrder, Product } from '../../../lib/types';
+import type { PurchaseOrder, Product, Vendor } from '../../../lib/types';
 import Modal from '../../../components/Modal';
 
 interface Props {
@@ -285,12 +285,28 @@ function AddPOForm({ products, onClose, onCreated }: {
 }) {
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [vendor, setVendor] = useState('');
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [showNewVendor, setShowNewVendor] = useState(false);
+  const [newVendorName, setNewVendorName] = useState('');
   const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0]);
   const [expectedDispatch, setExpectedDispatch] = useState('');
   const [expectedArrival, setExpectedArrival] = useState('');
   const [items, setItems] = useState<POLineItem[]>([{ product_id: '', product_name: '', quantity: 1 }]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    getVendors().then(setVendors);
+  }, []);
+
+  async function handleAddVendor() {
+    if (!newVendorName.trim()) return;
+    const v = await addVendor(newVendorName);
+    setVendors([...vendors, v].sort((a, b) => a.name.localeCompare(b.name)));
+    setVendor(v.name);
+    setNewVendorName('');
+    setShowNewVendor(false);
+  }
 
   function addLine() {
     setItems([...items, { product_id: '', product_name: '', quantity: 1 }]);
@@ -343,9 +359,31 @@ function AddPOForm({ products, onClose, onCreated }: {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-xs text-slate-500 mb-1">Vendor *</label>
-          <input type="text" value={vendor} onChange={e => setVendor(e.target.value)}
-            placeholder="e.g., IngramSpark, BookVault"
-            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-400" />
+          {showNewVendor ? (
+            <div className="flex gap-2">
+              <input type="text" value={newVendorName} onChange={e => setNewVendorName(e.target.value)}
+                placeholder="Vendor name"
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddVendor(); } }}
+                autoFocus
+                className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-400" />
+              <button type="button" onClick={handleAddVendor} className="px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Add</button>
+              <button type="button" onClick={() => setShowNewVendor(false)} className="px-2 py-2 text-slate-400 hover:text-slate-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <select value={vendor} onChange={e => setVendor(e.target.value)}
+                className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-400">
+                <option value="">Select vendor...</option>
+                {vendors.map(v => <option key={v.id} value={v.name}>{v.name}</option>)}
+              </select>
+              <button type="button" onClick={() => setShowNewVendor(true)}
+                className="px-2 py-2 text-blue-600 hover:bg-blue-50 rounded-lg" title="Add new vendor">
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
         <div>
           <label className="block text-xs text-slate-500 mb-1">Invoice #</label>
