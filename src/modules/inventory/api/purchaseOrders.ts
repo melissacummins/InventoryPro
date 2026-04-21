@@ -24,6 +24,7 @@ export interface CreatePOInput {
 
 export interface ConfirmArrivalInput {
   good_quantity: number;
+  add_to_inventory: number;
   scratch_dent_quantity: number;
   scratch_dent_product_id: string | null;
   save_scratch_dent_as_default: boolean;
@@ -95,13 +96,16 @@ export async function confirmArrival(id: string, input: ConfirmArrivalInput): Pr
       .eq('id', po.product_id);
   }
 
-  // Add good quantity to main product inventory
-  if (input.good_quantity > 0 && po.product_id) {
+  // Add to main product inventory (may be less than received for component orders)
+  if (input.add_to_inventory > 0 && po.product_id) {
+    const inventoryNote = input.add_to_inventory < input.good_quantity
+      ? `PO arrival: ${input.good_quantity} received, ${input.add_to_inventory} added to inventory${input.notes ? ' — ' + input.notes : ''}`
+      : `PO arrival: ${input.add_to_inventory} good units${input.notes ? ' — ' + input.notes : ''}`;
     await addToInventory(
       po.product_id,
-      input.good_quantity,
+      input.add_to_inventory,
       userId,
-      `PO arrival: ${input.good_quantity} good units${input.notes ? ' — ' + input.notes : ''}`
+      inventoryNote
     );
   }
 

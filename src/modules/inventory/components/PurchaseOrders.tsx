@@ -443,6 +443,7 @@ function ConfirmArrivalForm({ po, products, onClose, onConfirmed }: {
   const defaultSdProductId = mainProduct?.default_scratch_dent_product_id || '';
 
   const [goodQty, setGoodQty] = useState(po.quantity);
+  const [addToInv, setAddToInv] = useState(po.quantity);
   const [sdQty, setSdQty] = useState(0);
   const [sdProductId, setSdProductId] = useState<string>(defaultSdProductId);
   const [saveAsDefault, setSaveAsDefault] = useState(false);
@@ -460,6 +461,7 @@ function ConfirmArrivalForm({ po, products, onClose, onConfirmed }: {
     try {
       const input: ConfirmArrivalInput = {
         good_quantity: goodQty,
+        add_to_inventory: addToInv,
         scratch_dent_quantity: sdQty,
         scratch_dent_product_id: sdQty > 0 ? sdProductId : null,
         save_scratch_dent_as_default: saveAsDefault,
@@ -489,18 +491,27 @@ function ConfirmArrivalForm({ po, products, onClose, onConfirmed }: {
       </div>
 
       {/* Quantity Split */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <div>
-          <label className="block text-xs text-slate-500 mb-1">Good Quantity</label>
+          <label className="block text-xs text-slate-500 mb-1">Good Qty Received</label>
           <input type="number" min={0} value={goodQty}
-            onChange={e => setGoodQty(Number(e.target.value))}
+            onChange={e => { setGoodQty(Number(e.target.value)); if (addToInv === goodQty) setAddToInv(Number(e.target.value)); }}
             className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-400" />
         </div>
         <div>
-          <label className="block text-xs text-slate-500 mb-1">Scratch & Dent Qty</label>
+          <label className="block text-xs text-slate-500 mb-1">Scratch & Dent</label>
           <input type="number" min={0} value={sdQty}
             onChange={e => setSdQty(Number(e.target.value))}
             className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-400" />
+        </div>
+        <div>
+          <label className="block text-xs text-slate-500 mb-1">Add to Inventory</label>
+          <input type="number" min={0} value={addToInv}
+            onChange={e => setAddToInv(Number(e.target.value))}
+            className="w-full px-3 py-2 border border-indigo-300 bg-indigo-50/50 rounded-lg text-sm focus:outline-none focus:border-indigo-500" />
+          <p className="text-xs text-slate-400 mt-1">
+            Set to 0 for component-only orders (e.g., stickers arriving before buttons)
+          </p>
         </div>
       </div>
 
@@ -510,6 +521,11 @@ function ConfirmArrivalForm({ po, products, onClose, onConfirmed }: {
         {diff !== 0 && (
           <span className={diff < 0 ? 'text-amber-600 ml-2' : 'text-emerald-600 ml-2'}>
             ({diff < 0 ? `${Math.abs(diff)} fewer than ordered` : `${diff} more than ordered`})
+          </span>
+        )}
+        {addToInv < goodQty && addToInv >= 0 && (
+          <span className="text-indigo-600 ml-2">
+            ({goodQty - addToInv} received but not added to inventory)
           </span>
         )}
       </div>
@@ -562,8 +578,13 @@ function ConfirmArrivalForm({ po, products, onClose, onConfirmed }: {
 
       {/* Summary */}
       <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700 space-y-1">
-        {goodQty > 0 && (
-          <p>&bull; <strong>{goodQty}</strong> good units will be added to <strong>{po.product_name}</strong></p>
+        {addToInv > 0 ? (
+          <p>&bull; <strong>{addToInv}</strong> units will be added to <strong>{po.product_name}</strong> inventory</p>
+        ) : (
+          <p>&bull; <strong>{po.product_name}</strong> inventory will <strong>not change</strong> (component-only tracking)</p>
+        )}
+        {goodQty > addToInv && addToInv >= 0 && (
+          <p className="text-indigo-600">&bull; {goodQty - addToInv} units received but held (waiting for other components)</p>
         )}
         {sdQty > 0 && sdProduct && (
           <p>&bull; <strong>{sdQty}</strong> scratch & dent units will be added to <strong>{sdProduct.name}</strong></p>
