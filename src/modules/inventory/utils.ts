@@ -37,8 +37,8 @@ export function calculateProductMetrics(product: Product, allProducts?: Product[
   // TikTok Net Margin %: ttNetMargin / ttShopPrice
   const ttNetMarginPercent = product.tt_shop_price > 0 ? (ttNetMargin / product.tt_shop_price) * 100 : 0;
 
-  // Book Inventory: bookStock - (booksPurchased + purchasedViaBundles)
-  const bookInventory = product.book_stock - (product.books_purchased + product.purchased_via_bundles);
+  // Book Inventory: use the directly-managed field (updated by Shopify sync, PO arrivals, and manual adjustments)
+  const bookInventory = product.book_inventory;
 
   // Bundle Inventory: min of component books' bookInventory
   let bundlesInventory = product.bundles_inventory;
