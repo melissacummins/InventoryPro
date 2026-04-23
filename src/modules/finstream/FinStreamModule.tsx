@@ -1,29 +1,49 @@
-import { Wallet, Upload, ArrowRight } from 'lucide-react';
+import { useState } from 'react';
+import { LayoutDashboard, List, Tag, CreditCard } from 'lucide-react';
+import Dashboard from './components/Dashboard';
+import TransactionTable from './components/TransactionTable';
+import CategoryRules from './components/CategoryRules';
+import Subscriptions from './components/Subscriptions';
+
+type Tab = 'dashboard' | 'transactions' | 'rules' | 'subscriptions';
 
 export default function FinStreamModule() {
+  const [tab, setTab] = useState<Tab>('dashboard');
+
   return (
-    <div className="p-6 lg:p-8 max-w-5xl mx-auto">
-      <div className="text-center py-16">
-        <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-cyan-500 to-cyan-600 rounded-2xl shadow-lg shadow-cyan-500/25 mb-6">
-          <Wallet className="w-10 h-10 text-white" />
-        </div>
-        <h2 className="text-2xl font-bold text-slate-800 mb-2">FinStream</h2>
-        <p className="text-slate-500 max-w-md mx-auto mb-8">
-          Import bank and credit card transactions, auto-categorize expenses, track subscriptions, and project cash flow.
-        </p>
-        <div className="bg-slate-50 rounded-2xl p-6 max-w-lg mx-auto border border-slate-200">
-          <h3 className="font-semibold text-slate-700 mb-3 flex items-center gap-2">
-            <Upload className="w-4 h-4" /> Coming Up
-          </h3>
-          <ul className="text-sm text-slate-600 space-y-2 text-left">
-            <li className="flex items-center gap-2"><ArrowRight className="w-3 h-3 text-cyan-500 shrink-0" /> Multi-bank CSV import (Capital One, Ally, etc.)</li>
-            <li className="flex items-center gap-2"><ArrowRight className="w-3 h-3 text-cyan-500 shrink-0" /> Auto-categorization with custom rules</li>
-            <li className="flex items-center gap-2"><ArrowRight className="w-3 h-3 text-cyan-500 shrink-0" /> Subscription detection and tracking</li>
-            <li className="flex items-center gap-2"><ArrowRight className="w-3 h-3 text-cyan-500 shrink-0" /> 12-month cash flow projections</li>
-            <li className="flex items-center gap-2"><ArrowRight className="w-3 h-3 text-cyan-500 shrink-0" /> JSON data import from existing app</li>
-          </ul>
+    <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
+          <TabButton active={tab === 'dashboard'} onClick={() => setTab('dashboard')} icon={LayoutDashboard} label="Dashboard" />
+          <TabButton active={tab === 'transactions'} onClick={() => setTab('transactions')} icon={List} label="Transactions" />
+          <TabButton active={tab === 'rules'} onClick={() => setTab('rules')} icon={Tag} label="Rules" />
+          <TabButton active={tab === 'subscriptions'} onClick={() => setTab('subscriptions')} icon={CreditCard} label="Subscriptions" />
         </div>
       </div>
+
+      {tab === 'dashboard' && <Dashboard />}
+      {tab === 'transactions' && <TransactionTable />}
+      {tab === 'rules' && <CategoryRules />}
+      {tab === 'subscriptions' && <Subscriptions />}
     </div>
+  );
+}
+
+function TabButton({ active, onClick, icon: Icon, label }: {
+  active: boolean;
+  onClick: () => void;
+  icon: typeof LayoutDashboard;
+  label: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+        active ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+      }`}
+    >
+      <Icon className="w-4 h-4" /> {label}
+    </button>
   );
 }

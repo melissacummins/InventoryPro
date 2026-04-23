@@ -55,7 +55,7 @@ const modules = [
     shadow: 'shadow-pink-500/25',
   },
   {
-    name: 'FinStream',
+    name: 'Financials',
     description: 'Import bank transactions, auto-categorize expenses, and track subscriptions.',
     path: '/finstream',
     icon: Wallet,

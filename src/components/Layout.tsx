@@ -14,7 +14,7 @@ const modules = [
   { name: 'Profit', path: '/profit-track', icon: DollarSign, color: 'text-green-400' },
   { name: 'Ad Alchemy', path: '/ad-alchemy', icon: Sparkles, color: 'text-orange-400' },
   { name: 'Marketing', path: '/marketing', icon: Megaphone, color: 'text-pink-400' },
-  { name: 'FinStream', path: '/finstream', icon: Wallet, color: 'text-cyan-400' },
+  { name: 'Financials', path: '/finstream', icon: Wallet, color: 'text-cyan-400' },
   { name: 'KDP Optimizer', path: '/kdp-optimizer', icon: Search, color: 'text-rose-400' },
   { name: 'Settings', path: '/settings', icon: Settings, color: 'text-slate-300' },
 ];
