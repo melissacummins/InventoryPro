@@ -304,13 +304,19 @@ export default function OrdersDashboard({ settings, onSettingsRefresh }: Props) 
         const isBundle = p.category === 'Bundle' || p.category === 'Book Box';
         return {
           productId: p.id,
+          productName: p.name,
           inventoryItemId: p.shopify_inventory_item_id!,
           available: isBundle ? p.bundles_inventory : p.book_inventory,
         };
       });
 
       const result = await pushInventoryToShopify(selectedLocationId, updates);
-      setPushMessage(`Pushed inventory to Shopify: ${result.success} updated${result.failed > 0 ? `, ${result.failed} failed` : ''}`);
+      if (result.failed > 0) {
+        setPushError(`${result.failed} product${result.failed !== 1 ? 's' : ''} failed:\n${result.errors.map(e => `• ${e.productName}: ${e.error}`).join('\n')}`);
+      }
+      if (result.success > 0) {
+        setPushMessage(`${result.success} product${result.success !== 1 ? 's' : ''} updated on Shopify`);
+      }
     } catch (err: unknown) {
       setPushError(err instanceof Error ? err.message : 'Failed to push inventory to Shopify');
     } finally {
@@ -467,7 +473,7 @@ export default function OrdersDashboard({ settings, onSettingsRefresh }: Props) 
         {pushError && (
           <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
             <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-            <p className="text-sm text-red-700">{pushError}</p>
+            <pre className="text-sm text-red-700 whitespace-pre-wrap font-sans">{pushError}</pre>
           </div>
         )}
         {pushMessage && (

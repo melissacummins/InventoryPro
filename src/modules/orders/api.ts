@@ -174,23 +174,34 @@ export async function setShopifyInventoryLevel(locationId: string, inventoryItem
   });
 }
 
+export interface PushResult {
+  success: number;
+  failed: number;
+  errors: { productName: string; error: string }[];
+}
+
 export async function pushInventoryToShopify(
   locationId: string,
-  updates: { productId: string; inventoryItemId: string; available: number }[]
-): Promise<{ success: number; failed: number }> {
+  updates: { productId: string; productName: string; inventoryItemId: string; available: number }[]
+): Promise<PushResult> {
   let success = 0;
   let failed = 0;
+  const errors: { productName: string; error: string }[] = [];
 
   for (const u of updates) {
     try {
       await setShopifyInventoryLevel(locationId, u.inventoryItemId, u.available);
       success++;
-    } catch {
+    } catch (err: unknown) {
       failed++;
+      errors.push({
+        productName: u.productName,
+        error: err instanceof Error ? err.message : 'Unknown error',
+      });
     }
   }
 
-  return { success, failed };
+  return { success, failed, errors };
 }
 
 export interface FetchOrdersParams {
