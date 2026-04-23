@@ -204,14 +204,14 @@ export default function TransactionTable() {
       {/* Table */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm table-fixed">
             <thead className="sticky top-0 bg-slate-50">
               <tr className="text-left">
-                <th className="px-4 py-3 font-medium text-slate-500">Date</th>
+                <th className="px-4 py-3 font-medium text-slate-500 w-28">Date</th>
                 <th className="px-4 py-3 font-medium text-slate-500">Description</th>
-                <th className="px-4 py-3 font-medium text-slate-500">Category</th>
-                <th className="px-4 py-3 font-medium text-slate-500 text-right">Amount</th>
-                <th className="px-4 py-3 font-medium text-slate-500">Type</th>
+                <th className="px-4 py-3 font-medium text-slate-500 w-36">Category</th>
+                <th className="px-4 py-3 font-medium text-slate-500 text-right w-24">Amount</th>
+                <th className="px-4 py-3 font-medium text-slate-500 w-20">Type</th>
                 <th className="px-4 py-3 w-10"></th>
               </tr>
             </thead>
@@ -219,7 +219,7 @@ export default function TransactionTable() {
               {filtered.slice(0, 500).map(tx => (
                 <tr key={tx.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{tx.date}</td>
-                  <td className="px-4 py-3 max-w-xs">
+                  <td className="px-4 py-3">
                     {editingId === tx.id && editField === 'description' ? (
                       <div className="flex items-center gap-1">
                         <input type="text" value={editDescription} onChange={e => setEditDescription(e.target.value)}
@@ -230,11 +230,11 @@ export default function TransactionTable() {
                       </div>
                     ) : (
                       <span
-                        className="cursor-pointer hover:bg-cyan-50 px-1 py-0.5 rounded inline-flex items-center gap-1 group truncate"
+                        className="cursor-pointer hover:bg-cyan-50 px-1 py-0.5 rounded flex items-center gap-1 group"
                         onClick={() => { setEditingId(tx.id); setEditField('description'); setEditDescription(tx.description); }}
                         title={tx.description !== tx.original_description ? `Original: ${tx.original_description}` : tx.description}
                       >
-                        <span className="text-slate-800 truncate">{tx.description}</span>
+                        <span className="text-slate-800 truncate block overflow-hidden">{tx.description}</span>
                         <Edit2 className="w-3 h-3 text-slate-300 group-hover:text-cyan-400 opacity-0 group-hover:opacity-100 shrink-0" />
                       </span>
                     )}
