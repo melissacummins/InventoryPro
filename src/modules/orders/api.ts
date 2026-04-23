@@ -316,7 +316,7 @@ export async function applyOrdersToInventory(updates: InventoryUpdate[]): Promis
     const currentInventory = u.isBundle
       ? (product.bundles_inventory || 0)
       : (product.book_inventory || 0);
-    const newInventory = Math.max(0, currentInventory - delta);
+    const newInventory = currentInventory - delta;
 
     const updateFields: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
