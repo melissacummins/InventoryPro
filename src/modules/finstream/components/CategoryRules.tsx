@@ -1,10 +1,12 @@
-import { useState } from 'react';
-import { Plus, Trash2, RefreshCw, Loader2, AlertCircle, Check, X, Edit2 } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Plus, Trash2, RefreshCw, Loader2, AlertCircle, Check, X, Edit2, Search } from 'lucide-react';
 import { useCategoryRules } from '../hooks/useFinancials';
+import { useTransactions } from '../hooks/useFinancials';
 import { addCategoryRule, updateCategoryRule, deleteCategoryRule, recategorizeAll } from '../api';
 
 export default function CategoryRules() {
   const { rules, loading, refetch } = useCategoryRules();
+  const { transactions } = useTransactions();
   const [matchString, setMatchString] = useState('');
   const [targetCategory, setTargetCategory] = useState('');
   const [ruleType, setRuleType] = useState<'income' | 'expense' | ''>('expense');
@@ -12,12 +14,31 @@ export default function CategoryRules() {
   const [recategorizing, setRecategorizing] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
 
   // Editing state
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editMatch, setEditMatch] = useState('');
   const [editCategory, setEditCategory] = useState('');
   const [editType, setEditType] = useState<'income' | 'expense' | ''>('');
+
+  // Build unique categories from existing rules + transactions
+  const allCategories = useMemo(() => {
+    const cats = new Set<string>();
+    for (const r of rules) cats.add(r.target_category);
+    for (const t of transactions) if (t.category) cats.add(t.category);
+    return Array.from(cats).sort();
+  }, [rules, transactions]);
+
+  // Filter rules by search
+  const filteredRules = useMemo(() => {
+    if (!search) return rules;
+    const s = search.toLowerCase();
+    return rules.filter(r =>
+      r.match_string.toLowerCase().includes(s) ||
+      r.target_category.toLowerCase().includes(s)
+    );
+  }, [rules, search]);
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -118,9 +139,12 @@ export default function CategoryRules() {
           </div>
           <div className="flex-1 min-w-[150px]">
             <label className="block text-xs text-slate-500 mb-1">Set category to</label>
-            <input type="text" value={targetCategory} onChange={e => setTargetCategory(e.target.value)}
-              placeholder="e.g., Software, Advertising"
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-cyan-400" />
+            <CategoryInput
+              value={targetCategory}
+              onChange={setTargetCategory}
+              categories={allCategories}
+              placeholder="Type or pick a category..."
+            />
           </div>
           <div className="w-32">
             <label className="block text-xs text-slate-500 mb-1">Type</label>
@@ -138,6 +162,14 @@ export default function CategoryRules() {
           </button>
         </form>
 
+        {/* Search */}
+        <div className="relative mb-4">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Search rules..."
+            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-cyan-400" />
+        </div>
+
         {error && (
           <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg mb-4">
             <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
@@ -150,9 +182,14 @@ export default function CategoryRules() {
           </div>
         )}
 
+        {/* Rules count */}
+        <p className="text-xs text-slate-400 mb-2">
+          {filteredRules.length}{search ? ` of ${rules.length}` : ''} rule{filteredRules.length !== 1 ? 's' : ''}
+        </p>
+
         {/* Rules List */}
         <div className="divide-y divide-slate-100">
-          {rules.map(rule => (
+          {filteredRules.map(rule => (
             <div key={rule.id} className="flex items-center justify-between py-3 gap-3">
               {editingId === rule.id ? (
                 <>
@@ -161,9 +198,14 @@ export default function CategoryRules() {
                       onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditingId(null); }}
                       className="px-2 py-1 border border-cyan-400 rounded text-sm font-mono w-48 focus:outline-none" autoFocus />
                     <span className="text-slate-400">&rarr;</span>
-                    <input type="text" value={editCategory} onChange={e => setEditCategory(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditingId(null); }}
-                      className="px-2 py-1 border border-cyan-400 rounded text-sm w-40 focus:outline-none" />
+                    <CategoryInput
+                      value={editCategory}
+                      onChange={setEditCategory}
+                      categories={allCategories}
+                      className="w-40"
+                      onEnter={saveEdit}
+                      onEscape={() => setEditingId(null)}
+                    />
                     <select value={editType} onChange={e => setEditType(e.target.value as '' | 'income' | 'expense')}
                       className="px-2 py-1 border border-cyan-400 rounded text-sm focus:outline-none">
                       <option value="expense">expense</option>
@@ -200,11 +242,63 @@ export default function CategoryRules() {
               )}
             </div>
           ))}
-          {rules.length === 0 && (
-            <p className="py-6 text-center text-sm text-slate-400">No rules yet. Add one above to auto-categorize transactions on import.</p>
+          {filteredRules.length === 0 && (
+            <p className="py-6 text-center text-sm text-slate-400">
+              {search ? 'No rules match your search.' : 'No rules yet. Add one above to auto-categorize transactions on import.'}
+            </p>
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function CategoryInput({ value, onChange, categories, placeholder, className, onEnter, onEscape }: {
+  value: string;
+  onChange: (v: string) => void;
+  categories: string[];
+  placeholder?: string;
+  className?: string;
+  onEnter?: () => void;
+  onEscape?: () => void;
+}) {
+  const [focused, setFocused] = useState(false);
+
+  const filtered = value
+    ? categories.filter(c => c.toLowerCase().includes(value.toLowerCase()) && c !== value)
+    : categories;
+
+  const showSuggestions = focused && filtered.length > 0;
+
+  return (
+    <div className={`relative ${className || ''}`}>
+      <input
+        type="text"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setTimeout(() => setFocused(false), 150)}
+        onKeyDown={e => {
+          if (e.key === 'Enter' && onEnter) { e.preventDefault(); onEnter(); }
+          if (e.key === 'Escape' && onEscape) onEscape();
+        }}
+        placeholder={placeholder}
+        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-cyan-400"
+      />
+      {showSuggestions && (
+        <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+          {filtered.slice(0, 8).map(cat => (
+            <button
+              key={cat}
+              type="button"
+              onMouseDown={e => { e.preventDefault(); onChange(cat); setFocused(false); }}
+              className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-cyan-50 hover:text-cyan-700"
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
