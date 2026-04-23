@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
-import { Search, Edit2, Check, X, Trash2, Upload, Loader2, AlertCircle } from 'lucide-react';
+import { Search, Edit2, Check, X, Trash2, Upload, Loader2, AlertCircle, CheckSquare, Square, Tag, Type } from 'lucide-react';
 import { useTransactions, useCategoryRules } from '../hooks/useFinancials';
-import { updateTransaction, deleteTransaction, importTransactions, getUniqueCategories, getUniqueMonths } from '../api';
+import { updateTransaction, deleteTransaction, importTransactions, bulkUpdateTransactions, bulkDeleteTransactions, getUniqueCategories, getUniqueMonths } from '../api';
 import CategoryInput from './CategoryInput';
 import type { Transaction } from '../../../lib/types';
 import Papa from 'papaparse';
@@ -20,6 +20,12 @@ export default function TransactionTable() {
   const [editDescription, setEditDescription] = useState('');
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState('');
+
+  // Bulk selection
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkAction, setBulkAction] = useState<'' | 'category' | 'description' | 'type'>('');
+  const [bulkValue, setBulkValue] = useState('');
+  const [bulkProcessing, setBulkProcessing] = useState(false);
 
   const categories = useMemo(() => getUniqueCategories(transactions), [transactions]);
   const months = useMemo(() => getUniqueMonths(transactions), [transactions]);
@@ -40,6 +46,58 @@ export default function TransactionTable() {
   const totalIncome = filtered.filter(t => t.type === 'income').reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
   const totalExpenses = filtered.filter(t => t.type === 'expense').reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
 
+  const allFilteredSelected = filtered.length > 0 && filtered.every(t => selected.has(t.id));
+
+  function toggleSelect(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (allFilteredSelected) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(filtered.map(t => t.id)));
+    }
+  }
+
+  async function handleBulkApply() {
+    if (selected.size === 0) return;
+    setBulkProcessing(true);
+    try {
+      const ids = Array.from(selected);
+      if (bulkAction === 'category' && bulkValue) {
+        await bulkUpdateTransactions(ids, { category: bulkValue });
+      } else if (bulkAction === 'description' && bulkValue) {
+        await bulkUpdateTransactions(ids, { description: bulkValue });
+      } else if (bulkAction === 'type' && (bulkValue === 'income' || bulkValue === 'expense')) {
+        await bulkUpdateTransactions(ids, { type: bulkValue });
+      }
+      setSelected(new Set());
+      setBulkAction('');
+      setBulkValue('');
+      refetch();
+    } finally {
+      setBulkProcessing(false);
+    }
+  }
+
+  async function handleBulkDelete() {
+    if (selected.size === 0) return;
+    if (!confirm(`Delete ${selected.size} transaction${selected.size !== 1 ? 's' : ''}? This cannot be undone.`)) return;
+    setBulkProcessing(true);
+    try {
+      await bulkDeleteTransactions(Array.from(selected));
+      setSelected(new Set());
+      refetch();
+    } finally {
+      setBulkProcessing(false);
+    }
+  }
+
   async function handleCsvImport(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -59,7 +117,6 @@ export default function TransactionTable() {
             return;
           }
 
-          // Detect columns from first row's keys
           const headers = Object.keys(rows[0]);
           const findCol = (...names: string[]) => headers.find(h => names.some(n => h.toLowerCase().includes(n.toLowerCase())));
 
@@ -202,25 +259,91 @@ export default function TransactionTable() {
         </span>
       </div>
 
+      {/* Bulk Action Bar */}
+      {selected.size > 0 && (
+        <div className="flex flex-wrap items-center gap-3 p-3 bg-cyan-50 border border-cyan-200 rounded-xl">
+          <span className="text-sm font-medium text-cyan-800">{selected.size} selected</span>
+          <div className="h-5 w-px bg-cyan-200" />
+
+          <select value={bulkAction} onChange={e => { setBulkAction(e.target.value as typeof bulkAction); setBulkValue(''); }}
+            className="px-2 py-1.5 border border-cyan-300 rounded-lg text-sm bg-white">
+            <option value="">Choose action...</option>
+            <option value="category">Set Category</option>
+            <option value="description">Rename</option>
+            <option value="type">Set Type</option>
+          </select>
+
+          {bulkAction === 'category' && (
+            <CategoryInput
+              value={bulkValue}
+              onChange={setBulkValue}
+              categories={categories}
+              placeholder="Pick category..."
+              className="w-44"
+            />
+          )}
+          {bulkAction === 'description' && (
+            <input type="text" value={bulkValue} onChange={e => setBulkValue(e.target.value)}
+              placeholder="New description..."
+              className="px-3 py-1.5 border border-cyan-300 rounded-lg text-sm w-52 bg-white focus:outline-none focus:border-cyan-500" />
+          )}
+          {bulkAction === 'type' && (
+            <select value={bulkValue} onChange={e => setBulkValue(e.target.value)}
+              className="px-2 py-1.5 border border-cyan-300 rounded-lg text-sm bg-white">
+              <option value="">Pick type...</option>
+              <option value="income">Income</option>
+              <option value="expense">Expense</option>
+            </select>
+          )}
+
+          {bulkAction && bulkValue && (
+            <button onClick={handleBulkApply} disabled={bulkProcessing}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-600 text-white text-sm font-medium rounded-lg hover:bg-cyan-700 disabled:opacity-50">
+              {bulkProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+              Apply
+            </button>
+          )}
+
+          <div className="h-5 w-px bg-cyan-200" />
+          <button onClick={handleBulkDelete} disabled={bulkProcessing}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-red-600 text-sm font-medium rounded-lg hover:bg-red-50 disabled:opacity-50">
+            <Trash2 className="w-3 h-3" /> Delete
+          </button>
+
+          <button onClick={() => setSelected(new Set())}
+            className="ml-auto text-xs text-cyan-600 hover:text-cyan-700">Clear selection</button>
+        </div>
+      )}
+
       {/* Table */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
           <table className="w-full text-sm table-fixed">
             <thead className="sticky top-0 bg-slate-50">
               <tr className="text-left">
-                <th className="px-4 py-3 font-medium text-slate-500 w-28">Date</th>
-                <th className="px-4 py-3 font-medium text-slate-500">Description</th>
-                <th className="px-4 py-3 font-medium text-slate-500 w-36">Category</th>
-                <th className="px-4 py-3 font-medium text-slate-500 text-right w-24">Amount</th>
-                <th className="px-4 py-3 font-medium text-slate-500 w-20">Type</th>
-                <th className="px-4 py-3 w-10"></th>
+                <th className="px-3 py-3 w-10">
+                  <button onClick={toggleSelectAll} className="text-slate-400 hover:text-cyan-600">
+                    {allFilteredSelected ? <CheckSquare className="w-4 h-4 text-cyan-600" /> : <Square className="w-4 h-4" />}
+                  </button>
+                </th>
+                <th className="px-3 py-3 font-medium text-slate-500 w-28">Date</th>
+                <th className="px-3 py-3 font-medium text-slate-500">Description</th>
+                <th className="px-3 py-3 font-medium text-slate-500 w-36">Category</th>
+                <th className="px-3 py-3 font-medium text-slate-500 text-right w-24">Amount</th>
+                <th className="px-3 py-3 font-medium text-slate-500 w-20">Type</th>
+                <th className="px-3 py-3 w-10"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filtered.slice(0, 500).map(tx => (
-                <tr key={tx.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{tx.date}</td>
-                  <td className="px-4 py-3">
+                <tr key={tx.id} className={`hover:bg-slate-50 ${selected.has(tx.id) ? 'bg-cyan-50/50' : ''}`}>
+                  <td className="px-3 py-3">
+                    <button onClick={() => toggleSelect(tx.id)} className="text-slate-400 hover:text-cyan-600">
+                      {selected.has(tx.id) ? <CheckSquare className="w-4 h-4 text-cyan-600" /> : <Square className="w-4 h-4" />}
+                    </button>
+                  </td>
+                  <td className="px-3 py-3 text-slate-600 whitespace-nowrap">{tx.date}</td>
+                  <td className="px-3 py-3">
                     {editingId === tx.id && editField === 'description' ? (
                       <div className="flex items-center gap-1">
                         <input type="text" value={editDescription} onChange={e => setEditDescription(e.target.value)}
@@ -240,7 +363,7 @@ export default function TransactionTable() {
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-3">
                     {editingId === tx.id && editField === 'category' ? (
                       <div className="flex items-center gap-1">
                         <CategoryInput
@@ -267,17 +390,17 @@ export default function TransactionTable() {
                       </span>
                     )}
                   </td>
-                  <td className={`px-4 py-3 text-right font-medium ${tx.type === 'income' ? 'text-emerald-600' : 'text-red-600'}`}>
-                    ${Number(tx.amount).toFixed(2)}
+                  <td className={`px-3 py-3 text-right font-medium ${tx.type === 'income' ? 'text-emerald-600' : 'text-red-600'}`}>
+                    ${Math.abs(Number(tx.amount)).toFixed(2)}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-3">
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                       tx.type === 'income' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
                     }`}>
                       {tx.type}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-3">
                     <button onClick={() => handleDelete(tx.id)} className="p-1 text-slate-300 hover:text-red-500">
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -286,7 +409,7 @@ export default function TransactionTable() {
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-slate-400">
+                  <td colSpan={7} className="px-4 py-12 text-center text-slate-400">
                     {transactions.length === 0 ? 'No transactions. Import a CSV to get started.' : 'No transactions match your filters.'}
                   </td>
                 </tr>
@@ -301,9 +424,7 @@ export default function TransactionTable() {
 
 function normalizeDate(raw: string): string {
   if (!raw) return '';
-  // Try ISO format first (2024-01-15)
   if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.substring(0, 10);
-  // Try MM/DD/YYYY
   const parts = raw.split('/');
   if (parts.length === 3) {
     const [m, d, y] = parts;

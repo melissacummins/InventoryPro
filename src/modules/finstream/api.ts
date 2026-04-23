@@ -63,6 +63,19 @@ export async function deleteTransaction(id: string): Promise<void> {
   if (error) throw error;
 }
 
+export async function bulkUpdateTransactions(
+  ids: string[],
+  updates: Partial<Pick<Transaction, 'description' | 'category' | 'type'>>
+): Promise<void> {
+  const { error } = await supabase.from('transactions').update(updates).in('id', ids);
+  if (error) throw error;
+}
+
+export async function bulkDeleteTransactions(ids: string[]): Promise<void> {
+  const { error } = await supabase.from('transactions').delete().in('id', ids);
+  if (error) throw error;
+}
+
 export async function importTransactions(
   transactions: Omit<Transaction, 'id' | 'user_id' | 'created_at'>[],
   rules: CategoryRule[]
