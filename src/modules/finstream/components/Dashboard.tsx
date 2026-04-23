@@ -1,18 +1,44 @@
-import { useState, useEffect } from 'react';
-import { TrendingUp, TrendingDown, DollarSign, Loader2 } from 'lucide-react';
-import { getMonthlySummaries } from '../api';
-import type { MonthlySummary } from '../api';
+import { useState, useEffect, useMemo } from 'react';
+import { TrendingUp, TrendingDown, Wallet, Loader2, DollarSign } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
+import { useTransactions } from '../hooks/useFinancials';
 
 export default function Dashboard() {
-  const [summaries, setSummaries] = useState<MonthlySummary[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { transactions, loading } = useTransactions();
 
-  useEffect(() => {
-    getMonthlySummaries(12).then(data => {
-      setSummaries(data);
-      setLoading(false);
-    });
-  }, []);
+  const stats = useMemo(() => {
+    let totalIncome = 0;
+    let totalExpenses = 0;
+    const monthlyData = new Map<string, { income: number; expenses: number }>();
+    const expenseCategories = new Map<string, number>();
+
+    for (const tx of transactions) {
+      const amount = Math.abs(Number(tx.amount));
+      const month = tx.date.substring(0, 7);
+
+      if (!monthlyData.has(month)) monthlyData.set(month, { income: 0, expenses: 0 });
+      const entry = monthlyData.get(month)!;
+
+      if (tx.type === 'income') {
+        totalIncome += amount;
+        entry.income += amount;
+      } else {
+        totalExpenses += amount;
+        entry.expenses += amount;
+        expenseCategories.set(tx.category, (expenseCategories.get(tx.category) || 0) + amount);
+      }
+    }
+
+    const months = Array.from(monthlyData.entries())
+      .map(([month, data]) => ({ month: formatMonth(month), ...data }))
+      .sort((a, b) => a.month.localeCompare(b.month));
+
+    const expenseBreakdown = Array.from(expenseCategories.entries())
+      .map(([category, amount]) => ({ category, amount: Math.round(amount) }))
+      .sort((a, b) => b.amount - a.amount);
+
+    return { totalIncome, totalExpenses, net: totalIncome - totalExpenses, months, expenseBreakdown };
+  }, [transactions]);
 
   if (loading) {
     return (
@@ -22,7 +48,7 @@ export default function Dashboard() {
     );
   }
 
-  if (summaries.length === 0) {
+  if (transactions.length === 0) {
     return (
       <div className="text-center py-16 bg-white rounded-xl border border-slate-200">
         <DollarSign className="w-12 h-12 text-slate-300 mx-auto mb-3" />
@@ -32,44 +58,107 @@ export default function Dashboard() {
     );
   }
 
-  const current = summaries[0];
-  const previous = summaries[1];
-  const incomeChange = previous ? ((current.income - previous.income) / (previous.income || 1)) * 100 : 0;
-  const expenseChange = previous ? ((current.expenses - previous.expenses) / (previous.expenses || 1)) * 100 : 0;
+  const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#f97316', '#8b5cf6', '#06b6d4', '#ec4899', '#64748b'];
 
   return (
     <div className="space-y-6">
-      {/* Current Month Stats */}
+      {/* Top Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatCard
-          label="Income"
-          value={current.income}
-          change={incomeChange}
-          color="text-emerald-600"
-          bg="bg-emerald-50"
-          icon={TrendingUp}
-        />
-        <StatCard
-          label="Expenses"
-          value={current.expenses}
-          change={expenseChange}
-          color="text-red-600"
-          bg="bg-red-50"
-          icon={TrendingDown}
-        />
-        <StatCard
-          label="Net"
-          value={current.net}
-          color={current.net >= 0 ? 'text-emerald-600' : 'text-red-600'}
-          bg={current.net >= 0 ? 'bg-emerald-50' : 'bg-red-50'}
-          icon={DollarSign}
-        />
+        <div className="bg-white rounded-xl border border-slate-200 p-5 flex items-center gap-4">
+          <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center">
+            <TrendingUp className="w-6 h-6 text-emerald-600" />
+          </div>
+          <div>
+            <p className="text-xs text-slate-500">Total Income</p>
+            <p className="text-2xl font-bold text-slate-800">{formatCurrency(stats.totalIncome)}</p>
+          </div>
+        </div>
+        <div className="bg-white rounded-xl border border-slate-200 p-5 flex items-center gap-4">
+          <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+            <TrendingDown className="w-6 h-6 text-red-600" />
+          </div>
+          <div>
+            <p className="text-xs text-slate-500">Total Expenses</p>
+            <p className="text-2xl font-bold text-slate-800">{formatCurrency(stats.totalExpenses)}</p>
+          </div>
+        </div>
+        <div className="bg-white rounded-xl border border-slate-200 p-5 flex items-center gap-4">
+          <div className={`w-12 h-12 ${stats.net >= 0 ? 'bg-blue-100' : 'bg-red-100'} rounded-full flex items-center justify-center`}>
+            <Wallet className={`w-6 h-6 ${stats.net >= 0 ? 'text-blue-600' : 'text-red-600'}`} />
+          </div>
+          <div>
+            <p className="text-xs text-slate-500">Net Cash Flow</p>
+            <p className={`text-2xl font-bold ${stats.net >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+              {formatCurrency(stats.net)}
+            </p>
+          </div>
+        </div>
       </div>
 
-      {/* Monthly Trend */}
+      {/* Charts Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Income vs Expenses Bar Chart */}
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <h3 className="font-semibold text-slate-800 mb-4">Income vs Expenses</h3>
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={stats.months} barGap={4}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#94a3b8' }} />
+              <YAxis tick={{ fontSize: 12, fill: '#94a3b8' }} tickFormatter={v => `$${v}`} />
+              <Tooltip
+                formatter={(val: number) => formatCurrency(val)}
+                contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0' }}
+              />
+              <Bar dataKey="income" name="Income" fill="#10b981" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="expenses" name="Expenses" fill="#ef4444" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Expense Breakdown Donut Chart */}
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <h3 className="font-semibold text-slate-800 mb-4">Expense Breakdown</h3>
+          <div className="flex items-center gap-6">
+            <div className="w-48 h-48 shrink-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={stats.expenseBreakdown.slice(0, 8)}
+                    dataKey="amount"
+                    nameKey="category"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={80}
+                    paddingAngle={2}
+                  >
+                    {stats.expenseBreakdown.slice(0, 8).map((_, i) => (
+                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(val: number) => formatCurrency(val)} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex-1 space-y-2">
+              {stats.expenseBreakdown.slice(0, 8).map((cat, i) => (
+                <div key={cat.category} className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                    <span className="text-slate-600">{cat.category}</span>
+                  </div>
+                  <span className="font-medium text-slate-800">{formatCurrency(cat.amount)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Monthly Detail Table */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="p-4 border-b border-slate-100">
-          <h3 className="font-semibold text-slate-800">Monthly Trend</h3>
+          <h3 className="font-semibold text-slate-800">Monthly Detail</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -82,76 +171,19 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {summaries.map(s => (
-                <tr key={s.month} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-medium text-slate-800">{formatMonth(s.month)}</td>
-                  <td className="px-4 py-3 text-right text-emerald-600">{formatCurrency(s.income)}</td>
-                  <td className="px-4 py-3 text-right text-red-600">{formatCurrency(s.expenses)}</td>
-                  <td className={`px-4 py-3 text-right font-semibold ${s.net >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                    {formatCurrency(s.net)}
+              {stats.months.map(m => (
+                <tr key={m.month} className="hover:bg-slate-50">
+                  <td className="px-4 py-3 font-medium text-slate-800">{m.month}</td>
+                  <td className="px-4 py-3 text-right text-emerald-600">{formatCurrency(m.income)}</td>
+                  <td className="px-4 py-3 text-right text-red-600">{formatCurrency(m.expenses)}</td>
+                  <td className={`px-4 py-3 text-right font-semibold ${m.income - m.expenses >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {formatCurrency(m.income - m.expenses)}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </div>
-
-      {/* Top Expense Categories (current month) */}
-      {current.categoryBreakdown.length > 0 && (
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <h3 className="font-semibold text-slate-800 mb-4">
-            Top Categories — {formatMonth(current.month)}
-          </h3>
-          <div className="space-y-3">
-            {current.categoryBreakdown.slice(0, 10).map((cat, i) => {
-              const maxAmount = current.categoryBreakdown[0].amount;
-              const pct = maxAmount > 0 ? (cat.amount / maxAmount) * 100 : 0;
-              return (
-                <div key={i} className="flex items-center gap-3">
-                  <span className="text-sm text-slate-600 w-40 truncate">{cat.category}</span>
-                  <div className="flex-1 h-6 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full ${cat.type === 'income' ? 'bg-emerald-400' : 'bg-red-400'}`}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                  <span className={`text-sm font-medium w-24 text-right ${cat.type === 'income' ? 'text-emerald-600' : 'text-red-600'}`}>
-                    {formatCurrency(cat.amount)}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function StatCard({ label, value, change, color, bg, icon: Icon }: {
-  label: string;
-  value: number;
-  change?: number;
-  color: string;
-  bg: string;
-  icon: typeof DollarSign;
-}) {
-  return (
-    <div className="bg-white rounded-xl border border-slate-200 p-5">
-      <div className="flex items-center gap-3">
-        <div className={`w-10 h-10 ${bg} rounded-lg flex items-center justify-center`}>
-          <Icon className={`w-5 h-5 ${color}`} />
-        </div>
-        <div className="flex-1">
-          <p className="text-xs text-slate-500">{label}</p>
-          <p className={`text-xl font-bold ${color}`}>{formatCurrency(value)}</p>
-        </div>
-        {change !== undefined && change !== 0 && (
-          <span className={`text-xs font-medium px-2 py-1 rounded-full ${change > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-            {change > 0 ? '+' : ''}{change.toFixed(0)}%
-          </span>
-        )}
       </div>
     </div>
   );
