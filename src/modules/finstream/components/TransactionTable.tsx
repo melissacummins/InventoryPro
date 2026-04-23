@@ -1,19 +1,27 @@
 import { useState, useMemo } from 'react';
-import { Search, Edit2, Check, X, Trash2, Upload, Loader2, AlertCircle, CheckSquare, Square, Tag, Type } from 'lucide-react';
+import { Search, Edit2, Check, X, Trash2, Upload, Loader2, AlertCircle, CheckSquare, Square } from 'lucide-react';
 import { useTransactions, useCategoryRules } from '../hooks/useFinancials';
 import { updateTransaction, deleteTransaction, importTransactions, bulkUpdateTransactions, bulkDeleteTransactions, getUniqueCategories, getUniqueMonths } from '../api';
 import CategoryInput from './CategoryInput';
+import type { SharedFilters } from '../FinStreamModule';
 import type { Transaction } from '../../../lib/types';
 import Papa from 'papaparse';
 
-export default function TransactionTable() {
+interface Props {
+  filters: SharedFilters;
+  onFiltersChange: (f: SharedFilters) => void;
+}
+
+export default function TransactionTable({ filters, onFiltersChange }: Props) {
   const { transactions, loading, refetch } = useTransactions();
   const { rules } = useCategoryRules();
 
-  const [search, setSearch] = useState('');
-  const [monthFilter, setMonthFilter] = useState('');
-  const [typeFilter, setTypeFilter] = useState<'' | 'income' | 'expense'>('');
-  const [categoryFilter, setCategoryFilter] = useState('');
+  const { search, monthFilter, typeFilter, categoryFilter } = filters;
+  const setSearch = (v: string) => onFiltersChange({ ...filters, search: v });
+  const setMonthFilter = (v: string) => onFiltersChange({ ...filters, monthFilter: v });
+  const setTypeFilter = (v: '' | 'income' | 'expense') => onFiltersChange({ ...filters, typeFilter: v });
+  const setCategoryFilter = (v: string) => onFiltersChange({ ...filters, categoryFilter: v });
+
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editField, setEditField] = useState<'category' | 'description'>('category');
   const [editCategory, setEditCategory] = useState('');
@@ -36,7 +44,15 @@ export default function TransactionTable() {
       if (typeFilter && t.type !== typeFilter) return false;
       if (categoryFilter && t.category !== categoryFilter) return false;
       if (search) {
-        const s = search.toLowerCase();
+        const s = search.toLowerCase().trim();
+        // Check if searching by amount (starts with $ or is a number)
+        const amountSearch = s.replace(/^\$/, '');
+        if (/^\d+\.?\d*$/.test(amountSearch)) {
+          const searchNum = parseFloat(amountSearch);
+          if (Math.abs(Number(t.amount)).toFixed(2).includes(amountSearch) || Math.abs(Number(t.amount)) === searchNum) {
+            return true;
+          }
+        }
         return t.description.toLowerCase().includes(s) || t.original_description.toLowerCase().includes(s) || t.category.toLowerCase().includes(s);
       }
       return true;
@@ -219,7 +235,7 @@ export default function TransactionTable() {
 
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input type="text" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)}
+          <input type="text" placeholder="Search description, category, or amount..." value={search} onChange={e => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-cyan-400" />
         </div>
 

@@ -9,9 +9,22 @@ import Modal from '../../components/Modal';
 
 type Tab = 'dashboard' | 'transactions' | 'rules' | 'subscriptions';
 
+export interface SharedFilters {
+  search: string;
+  monthFilter: string;
+  typeFilter: '' | 'income' | 'expense';
+  categoryFilter: string;
+}
+
 export default function FinStreamModule() {
   const [tab, setTab] = useState<Tab>('dashboard');
   const [showImport, setShowImport] = useState(false);
+  const [filters, setFilters] = useState<SharedFilters>({
+    search: '',
+    monthFilter: '',
+    typeFilter: '',
+    categoryFilter: '',
+  });
 
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto">
@@ -32,7 +45,7 @@ export default function FinStreamModule() {
       </div>
 
       {tab === 'dashboard' && <Dashboard />}
-      {tab === 'transactions' && <TransactionTable />}
+      {tab === 'transactions' && <TransactionTable filters={filters} onFiltersChange={setFilters} />}
       {tab === 'rules' && <CategoryRules />}
       {tab === 'subscriptions' && <Subscriptions />}
 
