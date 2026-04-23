@@ -12,6 +12,7 @@ import {
 import type { InventoryUpdate } from '../api';
 import { useShopifyOrders } from '../hooks/useShopifyOrders';
 import type { ShopifySettings, ShopifyLocation, ShopifyLineItem, SkuMatch, Product } from '../../../lib/types';
+import { calculateProductMetrics } from '../../inventory/utils';
 import { supabase } from '../../../lib/supabase';
 
 interface Props {
@@ -301,8 +302,9 @@ export default function OrdersDashboard({ settings, onSettingsRefresh }: Props) 
       }
 
       const updates = mappedProducts.map(p => {
+        const metrics = calculateProductMetrics(p, products);
         const isBundle = p.category === 'Bundle' || p.category === 'Book Box';
-        const qty = isBundle ? p.bundles_inventory : p.book_inventory;
+        const qty = isBundle ? metrics.bundlesInventory : metrics.bookInventory;
         return {
           productId: p.id,
           productName: p.name,
@@ -704,15 +706,15 @@ function LinkedProductsTable({ products }: { products: Product[] }) {
                 <th className="px-3 py-2 font-medium text-slate-500">SKU</th>
                 <th className="px-3 py-2 font-medium text-slate-500">Category</th>
                 <th className="px-3 py-2 font-medium text-slate-500 text-right">Will Push</th>
-                <th className="px-3 py-2 font-medium text-slate-500 text-right">book_inventory</th>
-                <th className="px-3 py-2 font-medium text-slate-500 text-right">bundles_inventory</th>
+                <th className="px-3 py-2 font-medium text-slate-500 text-right">Displayed Inventory</th>
                 <th className="px-3 py-2 font-medium text-slate-500">Shopify Item ID</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {linked.map(p => {
+                const metrics = calculateProductMetrics(p, products);
                 const isBundle = p.category === 'Bundle' || p.category === 'Book Box';
-                const willPush = Math.max(0, isBundle ? p.bundles_inventory : p.book_inventory);
+                const willPush = Math.max(0, isBundle ? metrics.bundlesInventory : metrics.bookInventory);
                 return (
                   <tr key={p.id} className="hover:bg-slate-50">
                     <td className="px-3 py-2 text-slate-800">{p.name}</td>
@@ -723,8 +725,7 @@ function LinkedProductsTable({ products }: { products: Product[] }) {
                       }`}>{p.category}</span>
                     </td>
                     <td className="px-3 py-2 text-right font-semibold text-slate-800">{willPush}</td>
-                    <td className="px-3 py-2 text-right text-slate-500">{p.book_inventory}</td>
-                    <td className="px-3 py-2 text-right text-slate-500">{p.bundles_inventory}</td>
+                    <td className="px-3 py-2 text-right text-slate-600">{isBundle ? metrics.bundlesInventory : metrics.bookInventory}</td>
                     <td className="px-3 py-2 font-mono text-slate-400 text-[10px]">{p.shopify_inventory_item_id}</td>
                   </tr>
                 );
