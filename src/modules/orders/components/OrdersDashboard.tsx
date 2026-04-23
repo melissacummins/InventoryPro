@@ -302,11 +302,12 @@ export default function OrdersDashboard({ settings, onSettingsRefresh }: Props) 
 
       const updates = mappedProducts.map(p => {
         const isBundle = p.category === 'Bundle' || p.category === 'Book Box';
+        const qty = isBundle ? p.bundles_inventory : p.book_inventory;
         return {
           productId: p.id,
           productName: p.name,
           inventoryItemId: p.shopify_inventory_item_id!,
-          available: isBundle ? p.bundles_inventory : p.book_inventory,
+          available: Math.max(0, qty),
         };
       });
 

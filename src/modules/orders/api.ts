@@ -101,7 +101,10 @@ async function callShopifyProxy(action: string, params?: Record<string, unknown>
   });
 
   if (error) throw new Error(error.message || 'Shopify proxy call failed');
-  if (data?.error) throw new Error(data.error);
+  if (data?.error) {
+    const details = data.details ? ` — ${typeof data.details === 'string' ? data.details : JSON.stringify(data.details)}` : '';
+    throw new Error(`${data.error}${details}`);
+  }
   return data;
 }
 
