@@ -14,7 +14,9 @@ export default function TransactionTable() {
   const [typeFilter, setTypeFilter] = useState<'' | 'income' | 'expense'>('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editField, setEditField] = useState<'category' | 'description'>('category');
   const [editCategory, setEditCategory] = useState('');
+  const [editDescription, setEditDescription] = useState('');
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState('');
 
@@ -127,6 +129,12 @@ export default function TransactionTable() {
     refetch();
   }
 
+  async function handleSaveDescription(id: string) {
+    await updateTransaction(id, { description: editDescription });
+    setEditingId(null);
+    refetch();
+  }
+
   async function handleDelete(id: string) {
     if (!confirm('Delete this transaction?')) return;
     await deleteTransaction(id);
@@ -211,11 +219,28 @@ export default function TransactionTable() {
               {filtered.slice(0, 500).map(tx => (
                 <tr key={tx.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{tx.date}</td>
-                  <td className="px-4 py-3 text-slate-800 max-w-xs truncate" title={tx.original_description}>
-                    {tx.description}
+                  <td className="px-4 py-3 max-w-xs">
+                    {editingId === tx.id && editField === 'description' ? (
+                      <div className="flex items-center gap-1">
+                        <input type="text" value={editDescription} onChange={e => setEditDescription(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') handleSaveDescription(tx.id); if (e.key === 'Escape') setEditingId(null); }}
+                          className="w-full px-1 py-0.5 border border-cyan-400 rounded text-sm" autoFocus />
+                        <button onClick={() => handleSaveDescription(tx.id)} className="text-green-600 shrink-0"><Check className="w-3 h-3" /></button>
+                        <button onClick={() => setEditingId(null)} className="text-slate-400 shrink-0"><X className="w-3 h-3" /></button>
+                      </div>
+                    ) : (
+                      <span
+                        className="cursor-pointer hover:bg-cyan-50 px-1 py-0.5 rounded inline-flex items-center gap-1 group truncate"
+                        onClick={() => { setEditingId(tx.id); setEditField('description'); setEditDescription(tx.description); }}
+                        title={tx.description !== tx.original_description ? `Original: ${tx.original_description}` : tx.description}
+                      >
+                        <span className="text-slate-800 truncate">{tx.description}</span>
+                        <Edit2 className="w-3 h-3 text-slate-300 group-hover:text-cyan-400 opacity-0 group-hover:opacity-100 shrink-0" />
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
-                    {editingId === tx.id ? (
+                    {editingId === tx.id && editField === 'category' ? (
                       <div className="flex items-center gap-1">
                         <input type="text" value={editCategory} onChange={e => setEditCategory(e.target.value)}
                           onKeyDown={e => { if (e.key === 'Enter') handleSaveCategory(tx.id); if (e.key === 'Escape') setEditingId(null); }}
@@ -226,7 +251,7 @@ export default function TransactionTable() {
                     ) : (
                       <span
                         className="cursor-pointer hover:bg-cyan-50 px-1 py-0.5 rounded inline-flex items-center gap-1 group"
-                        onClick={() => { setEditingId(tx.id); setEditCategory(tx.category); }}
+                        onClick={() => { setEditingId(tx.id); setEditField('category'); setEditCategory(tx.category); }}
                       >
                         <span className={tx.category === 'Uncategorized' ? 'text-amber-500 italic' : 'text-slate-600'}>
                           {tx.category || 'Uncategorized'}
