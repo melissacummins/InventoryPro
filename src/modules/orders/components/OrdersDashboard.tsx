@@ -483,6 +483,11 @@ export default function OrdersDashboard({ settings, onSettingsRefresh }: Props) 
             <p className="text-sm text-emerald-700">{pushMessage}</p>
           </div>
         )}
+
+        {/* Linked products detail */}
+        {mappedCount > 0 && (
+          <LinkedProductsTable products={products} />
+        )}
       </div>
 
       {/* SKU Breakdown Table */}
@@ -673,6 +678,63 @@ function buildInventoryUpdates(
   }
 
   return updates;
+}
+
+function LinkedProductsTable({ products }: { products: Product[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const linked = products.filter(p => p.shopify_inventory_item_id);
+
+  if (linked.length === 0) return null;
+
+  return (
+    <div className="mt-3">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
+      >
+        {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+        {expanded ? 'Hide' : 'Show'} linked products ({linked.length})
+      </button>
+      {expanded && (
+        <div className="mt-2 overflow-x-auto border border-slate-200 rounded-lg">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-slate-50 text-left">
+                <th className="px-3 py-2 font-medium text-slate-500">Product</th>
+                <th className="px-3 py-2 font-medium text-slate-500">SKU</th>
+                <th className="px-3 py-2 font-medium text-slate-500">Category</th>
+                <th className="px-3 py-2 font-medium text-slate-500 text-right">Will Push</th>
+                <th className="px-3 py-2 font-medium text-slate-500 text-right">book_inventory</th>
+                <th className="px-3 py-2 font-medium text-slate-500 text-right">bundles_inventory</th>
+                <th className="px-3 py-2 font-medium text-slate-500">Shopify Item ID</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {linked.map(p => {
+                const isBundle = p.category === 'Bundle' || p.category === 'Book Box';
+                const willPush = Math.max(0, isBundle ? p.bundles_inventory : p.book_inventory);
+                return (
+                  <tr key={p.id} className="hover:bg-slate-50">
+                    <td className="px-3 py-2 text-slate-800">{p.name}</td>
+                    <td className="px-3 py-2 font-mono text-slate-500">{p.sku}</td>
+                    <td className="px-3 py-2">
+                      <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                        isBundle ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                      }`}>{p.category}</span>
+                    </td>
+                    <td className="px-3 py-2 text-right font-semibold text-slate-800">{willPush}</td>
+                    <td className="px-3 py-2 text-right text-slate-500">{p.book_inventory}</td>
+                    <td className="px-3 py-2 text-right text-slate-500">{p.bundles_inventory}</td>
+                    <td className="px-3 py-2 font-mono text-slate-400 text-[10px]">{p.shopify_inventory_item_id}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function StatCard({ icon: Icon, label, value, color, bg }: {
