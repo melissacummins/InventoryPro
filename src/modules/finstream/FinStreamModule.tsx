@@ -1,14 +1,17 @@
 import { useState } from 'react';
-import { LayoutDashboard, List, Tag, CreditCard } from 'lucide-react';
+import { LayoutDashboard, List, Tag, CreditCard, Download } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import TransactionTable from './components/TransactionTable';
 import CategoryRules from './components/CategoryRules';
 import Subscriptions from './components/Subscriptions';
+import JsonImport from './components/JsonImport';
+import Modal from '../../components/Modal';
 
 type Tab = 'dashboard' | 'transactions' | 'rules' | 'subscriptions';
 
 export default function FinStreamModule() {
   const [tab, setTab] = useState<Tab>('dashboard');
+  const [showImport, setShowImport] = useState(false);
 
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto">
@@ -20,12 +23,22 @@ export default function FinStreamModule() {
           <TabButton active={tab === 'rules'} onClick={() => setTab('rules')} icon={Tag} label="Rules" />
           <TabButton active={tab === 'subscriptions'} onClick={() => setTab('subscriptions')} icon={CreditCard} label="Subscriptions" />
         </div>
+        <button
+          onClick={() => setShowImport(true)}
+          className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50"
+        >
+          <Download className="w-4 h-4" /> Import from JSON
+        </button>
       </div>
 
       {tab === 'dashboard' && <Dashboard />}
       {tab === 'transactions' && <TransactionTable />}
       {tab === 'rules' && <CategoryRules />}
       {tab === 'subscriptions' && <Subscriptions />}
+
+      <Modal open={showImport} onClose={() => setShowImport(false)} title="Import from JSON" maxWidth="max-w-xl">
+        <JsonImport onComplete={() => setShowImport(false)} />
+      </Modal>
     </div>
   );
 }
