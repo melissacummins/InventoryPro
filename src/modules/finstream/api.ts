@@ -216,19 +216,20 @@ export async function getMonthlySummaries(months?: number): Promise<MonthlySumma
       monthMap.set(month, { income: 0, expenses: 0, categories: new Map() });
     }
     const entry = monthMap.get(month)!;
+    const absAmount = Math.abs(Number(tx.amount));
 
     if (tx.type === 'income') {
-      entry.income += Number(tx.amount);
+      entry.income += absAmount;
     } else {
-      entry.expenses += Number(tx.amount);
+      entry.expenses += absAmount;
     }
 
     const catKey = `${tx.category}|${tx.type}`;
     const existing = entry.categories.get(catKey);
     if (existing) {
-      existing.amount += Number(tx.amount);
+      existing.amount += absAmount;
     } else {
-      entry.categories.set(catKey, { amount: Number(tx.amount), type: tx.type as 'income' | 'expense' });
+      entry.categories.set(catKey, { amount: absAmount, type: tx.type as 'income' | 'expense' });
     }
   }
 

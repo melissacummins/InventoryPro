@@ -34,8 +34,8 @@ export default function TransactionTable() {
     });
   }, [transactions, search, monthFilter, typeFilter, categoryFilter]);
 
-  const totalIncome = filtered.filter(t => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0);
-  const totalExpenses = filtered.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
+  const totalIncome = filtered.filter(t => t.type === 'income').reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
+  const totalExpenses = filtered.filter(t => t.type === 'expense').reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
 
   async function handleCsvImport(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
