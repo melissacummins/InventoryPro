@@ -16,6 +16,7 @@ export const BACKUP_TABLES: BackupTable[] = [
   { name: 'book_specs', label: 'Book specs', module: 'Inventory' },
   { name: 'printer_quotes', label: 'Printer quotes', module: 'Inventory' },
   { name: 'sales_regions', label: 'Sales regions', module: 'Inventory' },
+  { name: 'vendors', label: 'Vendors', module: 'Inventory' },
 
   // Cross-sell
   { name: 'cross_sell_reports', label: 'Cross-sell reports', module: 'Cross-Sell' },
@@ -32,17 +33,19 @@ export const BACKUP_TABLES: BackupTable[] = [
   { name: 'monthly_page_reads', label: 'Monthly page reads', module: 'Profit' },
   { name: 'book_products', label: 'Books & bundles', module: 'Profit' },
   { name: 'book_daily_metrics', label: 'Book daily metrics', module: 'Profit' },
+  { name: 'profit_categories', label: 'Profit categories', module: 'Profit' },
+  { name: 'user_ui_preferences', label: 'UI preferences', module: 'Settings' },
 
   // Ad Alchemy (ad_projects first — enriched_ads references it)
   { name: 'ad_projects', label: 'Ad projects', module: 'Ad Alchemy' },
   { name: 'enriched_ads', label: 'Enriched ads', module: 'Ad Alchemy' },
 
-  // FinStream
-  { name: 'transactions', label: 'Transactions', module: 'FinStream' },
-  { name: 'category_rules', label: 'Category rules', module: 'FinStream' },
-  { name: 'manual_subscriptions', label: 'Manual subscriptions', module: 'FinStream' },
-  { name: 'cash_flow_notes', label: 'Cash flow notes', module: 'FinStream' },
-  { name: 'manual_history_entries', label: 'Manual history', module: 'FinStream' },
+  // Financials
+  { name: 'transactions', label: 'Transactions', module: 'Financials' },
+  { name: 'category_rules', label: 'Category rules', module: 'Financials' },
+  { name: 'manual_subscriptions', label: 'Subscriptions', module: 'Financials' },
+  { name: 'cash_flow_notes', label: 'Cash flow notes', module: 'Financials' },
+  { name: 'manual_history_entries', label: 'Manual history', module: 'Financials' },
 
   // KDP
   { name: 'tropes', label: 'Tropes', module: 'KDP Optimizer' },

@@ -120,6 +120,11 @@ export async function addCategoryRule(rule: Omit<CategoryRule, 'id' | 'user_id' 
   return data;
 }
 
+export async function updateCategoryRule(id: string, updates: Partial<Pick<CategoryRule, 'match_string' | 'target_category' | 'type'>>): Promise<void> {
+  const { error } = await supabase.from('category_rules').update(updates).eq('id', id);
+  if (error) throw error;
+}
+
 export async function deleteCategoryRule(id: string): Promise<void> {
   const { error } = await supabase.from('category_rules').delete().eq('id', id);
   if (error) throw error;

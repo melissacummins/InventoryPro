@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Plus, Trash2, RefreshCw, Loader2, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, RefreshCw, Loader2, AlertCircle, Check, X, Edit2 } from 'lucide-react';
 import { useCategoryRules } from '../hooks/useFinancials';
-import { addCategoryRule, deleteCategoryRule, recategorizeAll } from '../api';
+import { addCategoryRule, updateCategoryRule, deleteCategoryRule, recategorizeAll } from '../api';
 
 export default function CategoryRules() {
   const { rules, loading, refetch } = useCategoryRules();
@@ -12,6 +12,12 @@ export default function CategoryRules() {
   const [recategorizing, setRecategorizing] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+
+  // Editing state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editMatch, setEditMatch] = useState('');
+  const [editCategory, setEditCategory] = useState('');
+  const [editType, setEditType] = useState<'income' | 'expense' | ''>('');
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -31,6 +37,28 @@ export default function CategoryRules() {
       setError(err instanceof Error ? err.message : 'Failed to add rule');
     } finally {
       setSaving(false);
+    }
+  }
+
+  function startEdit(rule: typeof rules[0]) {
+    setEditingId(rule.id);
+    setEditMatch(rule.match_string);
+    setEditCategory(rule.target_category);
+    setEditType(rule.type || '');
+  }
+
+  async function saveEdit() {
+    if (!editingId || !editMatch.trim() || !editCategory.trim()) return;
+    try {
+      await updateCategoryRule(editingId, {
+        match_string: editMatch.trim(),
+        target_category: editCategory.trim(),
+        type: editType || null,
+      });
+      setEditingId(null);
+      refetch();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to update rule');
     }
   }
 
@@ -125,20 +153,51 @@ export default function CategoryRules() {
         {/* Rules List */}
         <div className="divide-y divide-slate-100">
           {rules.map(rule => (
-            <div key={rule.id} className="flex items-center justify-between py-3">
-              <div className="flex items-center gap-4 text-sm">
-                <span className="font-mono bg-slate-100 px-2 py-1 rounded text-slate-700">{rule.match_string}</span>
-                <span className="text-slate-400">&rarr;</span>
-                <span className="font-medium text-slate-800">{rule.target_category}</span>
-                {rule.type && (
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${
-                    rule.type === 'income' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
-                  }`}>{rule.type}</span>
-                )}
-              </div>
-              <button onClick={() => handleDelete(rule.id)} className="p-1 text-slate-300 hover:text-red-500">
-                <Trash2 className="w-4 h-4" />
-              </button>
+            <div key={rule.id} className="flex items-center justify-between py-3 gap-3">
+              {editingId === rule.id ? (
+                <>
+                  <div className="flex items-center gap-3 flex-1 flex-wrap">
+                    <input type="text" value={editMatch} onChange={e => setEditMatch(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditingId(null); }}
+                      className="px-2 py-1 border border-cyan-400 rounded text-sm font-mono w-48 focus:outline-none" autoFocus />
+                    <span className="text-slate-400">&rarr;</span>
+                    <input type="text" value={editCategory} onChange={e => setEditCategory(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditingId(null); }}
+                      className="px-2 py-1 border border-cyan-400 rounded text-sm w-40 focus:outline-none" />
+                    <select value={editType} onChange={e => setEditType(e.target.value as '' | 'income' | 'expense')}
+                      className="px-2 py-1 border border-cyan-400 rounded text-sm focus:outline-none">
+                      <option value="expense">expense</option>
+                      <option value="income">income</option>
+                      <option value="">auto</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button onClick={saveEdit} className="p-1 text-green-600 hover:bg-green-50 rounded"><Check className="w-4 h-4" /></button>
+                    <button onClick={() => setEditingId(null)} className="p-1 text-slate-400 hover:bg-slate-50 rounded"><X className="w-4 h-4" /></button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-4 text-sm flex-1 flex-wrap">
+                    <span className="font-mono bg-slate-100 px-2 py-1 rounded text-slate-700">{rule.match_string}</span>
+                    <span className="text-slate-400">&rarr;</span>
+                    <span className="font-medium text-slate-800">{rule.target_category}</span>
+                    {rule.type && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${
+                        rule.type === 'income' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                      }`}>{rule.type}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => startEdit(rule)} className="p-1 text-slate-300 hover:text-cyan-500 rounded">
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => handleDelete(rule.id)} className="p-1 text-slate-300 hover:text-red-500 rounded">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           ))}
           {rules.length === 0 && (
