@@ -32,36 +32,33 @@ export default function Dashboard() {
     );
   }
 
-  const current = summaries[0];
-  const previous = summaries[1];
-  const incomeChange = previous && previous.income > 0 ? ((current.income - previous.income) / previous.income) * 100 : 0;
-  const expenseChange = previous && previous.expenses > 0 ? ((current.expenses - previous.expenses) / previous.expenses) * 100 : 0;
+  const totalIncome = summaries.reduce((s, m) => s + m.income, 0);
+  const totalExpenses = summaries.reduce((s, m) => s + m.expenses, 0);
+  const totalNet = totalIncome - totalExpenses;
 
   return (
     <div className="space-y-6">
-      {/* Current Month Stats */}
+      {/* Overall Totals */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <StatCard
-          label="Income"
-          value={current.income}
-          change={incomeChange}
+          label="Total Income"
+          value={totalIncome}
           color="text-emerald-600"
           bg="bg-emerald-50"
           icon={TrendingUp}
         />
         <StatCard
-          label="Expenses"
-          value={current.expenses}
-          change={expenseChange}
+          label="Total Expenses"
+          value={totalExpenses}
           color="text-red-600"
           bg="bg-red-50"
           icon={TrendingDown}
         />
         <StatCard
-          label="Net"
-          value={current.net}
-          color={current.net >= 0 ? 'text-emerald-600' : 'text-red-600'}
-          bg={current.net >= 0 ? 'bg-emerald-50' : 'bg-red-50'}
+          label="Net Cash Flow"
+          value={totalNet}
+          color={totalNet >= 0 ? 'text-emerald-600' : 'text-red-600'}
+          bg={totalNet >= 0 ? 'bg-emerald-50' : 'bg-red-50'}
           icon={DollarSign}
         />
       </div>
@@ -97,42 +94,58 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Top Expense Categories (current month) */}
-      {current.categoryBreakdown.length > 0 && (
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <h3 className="font-semibold text-slate-800 mb-4">
-            Top Categories — {formatMonth(current.month)}
-          </h3>
-          <div className="space-y-3">
-            {current.categoryBreakdown.slice(0, 10).map((cat, i) => {
-              const maxAmount = current.categoryBreakdown[0].amount;
-              const pct = maxAmount > 0 ? (cat.amount / maxAmount) * 100 : 0;
-              return (
-                <div key={i} className="flex items-center gap-3">
-                  <span className="text-sm text-slate-600 w-40 truncate">{cat.category}</span>
-                  <div className="flex-1 h-6 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full ${cat.type === 'income' ? 'bg-emerald-400' : 'bg-red-400'}`}
-                      style={{ width: `${pct}%` }}
-                    />
+      {/* Top Categories (all time) */}
+      {(() => {
+        const allCats = new Map<string, { amount: number; type: 'income' | 'expense' }>();
+        for (const s of summaries) {
+          for (const cat of s.categoryBreakdown) {
+            const existing = allCats.get(cat.category);
+            if (existing) {
+              existing.amount += cat.amount;
+            } else {
+              allCats.set(cat.category, { amount: cat.amount, type: cat.type });
+            }
+          }
+        }
+        const sorted = Array.from(allCats.entries())
+          .map(([category, data]) => ({ category, ...data }))
+          .sort((a, b) => b.amount - a.amount);
+
+        if (sorted.length === 0) return null;
+        const maxAmount = sorted[0].amount;
+
+        return (
+          <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <h3 className="font-semibold text-slate-800 mb-4">Top Categories</h3>
+            <div className="space-y-3">
+              {sorted.slice(0, 10).map((cat, i) => {
+                const pct = maxAmount > 0 ? (cat.amount / maxAmount) * 100 : 0;
+                return (
+                  <div key={i} className="flex items-center gap-3">
+                    <span className="text-sm text-slate-600 w-40 truncate">{cat.category}</span>
+                    <div className="flex-1 h-6 bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${cat.type === 'income' ? 'bg-emerald-400' : 'bg-red-400'}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <span className={`text-sm font-medium w-24 text-right ${cat.type === 'income' ? 'text-emerald-600' : 'text-red-600'}`}>
+                      {formatCurrency(cat.amount)}
+                    </span>
                   </div>
-                  <span className={`text-sm font-medium w-24 text-right ${cat.type === 'income' ? 'text-emerald-600' : 'text-red-600'}`}>
-                    {formatCurrency(cat.amount)}
-                  </span>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
 
-function StatCard({ label, value, change, color, bg, icon: Icon }: {
+function StatCard({ label, value, color, bg, icon: Icon }: {
   label: string;
   value: number;
-  change?: number;
   color: string;
   bg: string;
   icon: typeof DollarSign;
@@ -143,15 +156,10 @@ function StatCard({ label, value, change, color, bg, icon: Icon }: {
         <div className={`w-10 h-10 ${bg} rounded-lg flex items-center justify-center`}>
           <Icon className={`w-5 h-5 ${color}`} />
         </div>
-        <div className="flex-1">
+        <div>
           <p className="text-xs text-slate-500">{label}</p>
           <p className={`text-xl font-bold ${color}`}>{formatCurrency(value)}</p>
         </div>
-        {change !== undefined && change !== 0 && (
-          <span className={`text-xs font-medium px-2 py-1 rounded-full ${change > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-            {change > 0 ? '+' : ''}{change.toFixed(0)}%
-          </span>
-        )}
       </div>
     </div>
   );

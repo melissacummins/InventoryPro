@@ -50,12 +50,42 @@ export default function TransactionTable() {
       complete: async (result) => {
         try {
           const rows = result.data as Record<string, string>[];
+          if (rows.length === 0) {
+            setImportMsg('No data found in CSV file');
+            setImporting(false);
+            return;
+          }
+
+          // Detect columns from first row's keys
+          const headers = Object.keys(rows[0]);
+          const findCol = (...names: string[]) => headers.find(h => names.some(n => h.toLowerCase().includes(n.toLowerCase())));
+
+          const dateCol = findCol('Date', 'Transaction Date', 'Posted Date', 'Posting Date');
+          const descCol = findCol('Description', 'Memo', 'Transaction Description', 'Payee');
+          const amountCol = findCol('Amount');
+          const debitCol = findCol('Debit');
+          const creditCol = findCol('Credit');
+
+          if (!dateCol) {
+            setImportMsg(`Could not find a date column. Found columns: ${headers.join(', ')}`);
+            setImporting(false);
+            return;
+          }
+
           const txs = rows.map(row => {
-            const amount = parseFloat(
-              (row.Amount || row.amount || row.Debit || row.Credit || '0').replace(/[$,]/g, '')
-            );
-            const date = normalizeDate(row.Date || row.date || row['Transaction Date'] || row['Posted Date'] || '');
-            const desc = row.Description || row.description || row.Memo || row.memo || row['Transaction Description'] || '';
+            let amount: number;
+            if (amountCol) {
+              amount = parseFloat((row[amountCol] || '0').replace(/[$,]/g, ''));
+            } else if (debitCol || creditCol) {
+              const debit = parseFloat((row[debitCol || ''] || '0').replace(/[$,]/g, '')) || 0;
+              const credit = parseFloat((row[creditCol || ''] || '0').replace(/[$,]/g, '')) || 0;
+              amount = credit > 0 ? credit : -Math.abs(debit);
+            } else {
+              amount = 0;
+            }
+
+            const date = normalizeDate(row[dateCol] || '');
+            const desc = row[descCol || ''] || '';
 
             return {
               date,
@@ -68,6 +98,12 @@ export default function TransactionTable() {
             };
           }).filter(tx => tx.date && tx.amount !== 0);
 
+          if (txs.length === 0) {
+            setImportMsg('No valid transactions found. Check that the CSV has date and amount columns.');
+            setImporting(false);
+            return;
+          }
+
           const count = await importTransactions(txs, rules);
           setImportMsg(`Imported ${count} transactions from ${file.name}`);
           refetch();
@@ -78,8 +114,8 @@ export default function TransactionTable() {
           e.target.value = '';
         }
       },
-      error: () => {
-        setImportMsg('Failed to parse CSV file');
+      error: (err) => {
+        setImportMsg(`Failed to parse CSV: ${err.message}`);
         setImporting(false);
       },
     });
