@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { Search, Edit2, Check, X, Trash2, Upload, Loader2, AlertCircle } from 'lucide-react';
 import { useTransactions, useCategoryRules } from '../hooks/useFinancials';
 import { updateTransaction, deleteTransaction, importTransactions, getUniqueCategories, getUniqueMonths } from '../api';
+import CategoryInput from './CategoryInput';
 import type { Transaction } from '../../../lib/types';
 import Papa from 'papaparse';
 
@@ -242,11 +243,17 @@ export default function TransactionTable() {
                   <td className="px-4 py-3">
                     {editingId === tx.id && editField === 'category' ? (
                       <div className="flex items-center gap-1">
-                        <input type="text" value={editCategory} onChange={e => setEditCategory(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter') handleSaveCategory(tx.id); if (e.key === 'Escape') setEditingId(null); }}
-                          className="w-32 px-1 py-0.5 border border-cyan-400 rounded text-sm" autoFocus />
-                        <button onClick={() => handleSaveCategory(tx.id)} className="text-green-600"><Check className="w-3 h-3" /></button>
-                        <button onClick={() => setEditingId(null)} className="text-slate-400"><X className="w-3 h-3" /></button>
+                        <CategoryInput
+                          value={editCategory}
+                          onChange={setEditCategory}
+                          categories={categories}
+                          className="w-32"
+                          onEnter={() => handleSaveCategory(tx.id)}
+                          onEscape={() => setEditingId(null)}
+                          autoFocus
+                        />
+                        <button onClick={() => handleSaveCategory(tx.id)} className="text-green-600 shrink-0"><Check className="w-3 h-3" /></button>
+                        <button onClick={() => setEditingId(null)} className="text-slate-400 shrink-0"><X className="w-3 h-3" /></button>
                       </div>
                     ) : (
                       <span
